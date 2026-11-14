@@ -5,9 +5,17 @@
   "inicio_comun": [
     {
       "desde": 270,
-      "hasta": 120,
+      "hasta": 150,
       "desplazamiento_px": -2.5,
-      "nota": "Camino a cargar: esquina a la derecha, abrir el giro (poste de madera)"
+      "nota": "Camino a cargar: antes de la esquina a la derecha, abrir el giro (poste de madera); máx. 25 km/h (llegaba a 33 y chocaba la grúa)",
+      "max_kmh": 25
+    },
+    {
+      "desde": 150,
+      "hasta": 115,
+      "max_kmh": 25,
+      "desplazamiento_px": 0,
+      "nota": "Camino a cargar: entrada al patio sobre la línea (con −2,5 rozaba el remolque y el contenedor de la izquierda)"
     }
   ],
   "regreso_comun": [

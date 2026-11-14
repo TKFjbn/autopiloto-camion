@@ -87,7 +87,7 @@ class Salud:
                 ini = f" (empezó a {self._m_inicio / 1000:.2f} km)".replace(".", ",") if self._m_inicio else ""
                 self._poner("recorrido", "aviso", "No reconozco el recorrido: no hay reglas en la ida",
                             "Va solo con el GPS y la visión" + ini + ". Es normal si activaste a mitad de camino "
-                            "o si es un recorrido nuevo; activa antes de cargar para que lo reconozca.")
+                            "o si es un recorrido nuevo: elígelo en «Recorrido» (junto a «Empezar en») o activa antes de cargar.")
             elif not sin:
                 self._quitar("recorrido")
         else:

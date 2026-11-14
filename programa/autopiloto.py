@@ -148,6 +148,7 @@ class Autopiloto:
         except Exception as e:  # noqa
             self.rutas_mod, self.rutas = None, {"rutas": [], "regreso_comun": []}
         self.ruta_act = None
+        self.ruta_elegida = None              # 3.2.5: recorrido elegido a mano (archivo de datos/rutas)
         self.regla = None
         self._tramo_visto = None
         # v38: grabaciones de recorridos (entrada a granjas, reversa, punto final)
@@ -851,6 +852,9 @@ class Autopiloto:
                     self.grab_pendiente = None
                 print(f"[i] Experimental: {clave} {'ACTIVADO' if val == '1' else 'desactivado'}.")
                 continue
+            if cmd.startswith("recorrido:"):                 # 3.2.5: elegir el recorrido a mano
+                self.elegir_recorrido(cmd.split(":", 1)[1] or None)
+                continue
             if cmd.startswith("tramo:"):
                 self.tramo = max(0, min(2, int(cmd.split(":")[1])))
                 print(f"[i] Tramo fijado: {self.texto_etapa()}")
@@ -933,6 +937,9 @@ class Autopiloto:
             if es.get("giro_tardio_muy_cerrada_grados", 80) <= abs(grados or 0) < 110:
                 return es.get("giro_tardio_muy_cerrada_px", 3) * escala
             return es.get("giro_tardio_px", 7) * escala
+        # 3.2.1: la línea del GPS nace en la PUNTA de la flecha, no en su centro: con la esquina ya bajo la
+        # flecha, su distancia se mide desde la punta (si no, en esquinas de 90° nunca baja del margen y sigue de largo)
+        frente = es.get("frente_flecha_px", 7.0) * escala
         if eg is not None and ed is not None and abs(eg) >= es.get("giro_tardio_grados", 55):
             k_esq = next((i for i, p in enumerate(pts) if p[2] >= ed), len(pts) - 1)
             if ed > px_tardio(eg):
@@ -957,7 +964,7 @@ class Autopiloto:
             self.esperando_esquina = False
             return math.degrees(math.atan2(objetivo[0] - px, py - objetivo[1])), L
         if ef is not None and abs(res.get("rumbo") or 0) >= es.get("giro_tardio_grados", 55):
-            if ef > px_tardio(max(abs(eg or 0), abs(res.get("rumbo") or 0))):
+            if ef - frente > px_tardio(max(abs(eg or 0), abs(res.get("rumbo") or 0))):
                 self.esperando_esquina = True
                 return 0.0, L                                   # todavía no: recto
             self.en_giro_tardio = True
@@ -971,6 +978,17 @@ class Autopiloto:
                 and L < ed <= es.get("abrir_desde_px", 45):
             ang -= (1 if eg > 0 else -1) * math.degrees(math.atan2(es.get("abrir_antes_px", 2.0), max(L, 1)))
         return ang, L
+
+    @staticmethod
+    def fuerza_carril(rc, cfc):
+        """Cuánto se usa la cámara de carril (0..1): entera si ve las dos líneas (confianza alta),
+        a medias si ve solo una línea recta y clara (p. ej. la amarilla de noche), nada si no."""
+        conf = rc.get("confianza") or 0.0
+        if conf >= cfc.get("conf_min", 0.75):
+            return 1.0
+        if conf >= cfc.get("conf_min_una_linea", 0.55):
+            return cfc.get("peso_una_linea", 0.5)
+        return 0.0
 
     def termino_carril(self, rc, cfc, res=None):
         """Corrección por carril, limitada y filtrada para que cambie despacio (evita el zigzag).
@@ -1067,11 +1085,11 @@ class Autopiloto:
         # carril detectado en la imagen: corrección fina
         self.carril_usado = False
         rc, cfc = self.res_carril, self.cfg.get("carril", {})
-        if rc is not None and self.usar_carril and rc["confianza"] >= cfc.get("conf_min", 0.75) \
+        if rc is not None and self.usar_carril and self.fuerza_carril(rc, cfc) > 0 \
                 and abs(res.get("giro_adelante") or 0) < cfc.get("giro_max", 35) \
                 and (res.get("esquina_dist") is None or res["esquina_dist"] > 40) \
                 and self.kmh >= cfc.get("kmh_min", 15) and not self.fuera_de_calle:
-            err += self.termino_carril(rc, cfc, res)
+            err += self.fuerza_carril(rc, cfc) * self.termino_carril(rc, cfc, res)
             self.carril_usado = True
         else:
             self.termino_carril_f = 0.0
@@ -1127,12 +1145,13 @@ class Autopiloto:
         # carril detectado en la imagen del juego: corrección fina dentro del carril
         self.carril_usado = False
         rc, cfc = self.res_carril, self.cfg.get("carril", {})
-        if rc is not None and self.usar_carril and rc["confianza"] >= cfc.get("conf_min", 0.75) \
+        if rc is not None and self.usar_carril and self.fuerza_carril(rc, cfc) > 0 \
                 and abs(res.get("giro_adelante") or 0) < cfc.get("giro_max", 35) \
                 and (res.get("esquina_dist") is None or res["esquina_dist"] > 40) \
                 and self.kmh >= cfc.get("kmh_min", 15) and not self.fuera_de_calle:
-            termino *= (1 - cfc.get("reduccion_gps", 0.6) * rc["confianza"])
-            termino += self.termino_carril(rc, cfc, res)
+            f_c = self.fuerza_carril(rc, cfc)
+            termino *= (1 - cfc.get("reduccion_gps", 0.6) * rc["confianza"] * f_c)
+            termino += f_c * self.termino_carril(rc, cfc, res)
             self.carril_usado = True
         else:
             self.termino_carril_f = 0.0
@@ -1362,6 +1381,7 @@ class Autopiloto:
         err = obj - vpred
         # error "amortiguado": si ya va subiendo/bajando rápido, anticipar (evita pasarse por el retraso del HUD)
         err_d = err - v.get("amortiguacion_seg", 0.25) * pendiente
+        suave_v = self.experimental("velocidad_sin_vaiven")      # 3.2.4
         freno = 0.0
         crucero = interpolar(obj, v["acelerador_crucero_por_velocidad"])
         acel_max = min(v["acelerador_max_en_marcha"], interpolar(obj, v["acelerador_max_por_objetivo"]))
@@ -1400,7 +1420,17 @@ class Autopiloto:
             # acelerador PROPORCIONAL y suave (sin todo-o-nada): crucero + lo aprendido + corrección.
             # El término integral aprende cuánto acelerador hace falta de verdad (carga, cuestas).
             acel = crucero + integ + v.get("kp_acelerador", 0.03) * err_d
-            acel = max(0.0, min(acel, acel_max))
+            tope = acel_max
+            if suave_v:
+                # 3.2.4: en GTA el acelerador responde fuerte (soltarlo ya frena ~15 km/h/s) y el HUD llega tarde:
+                # el control iba y venía (24 <-> 48 km/h con límite 40). Cerca del objetivo, acelerador acotado
+                # alrededor del de mantener, y por poco exceso no se suelta del todo.
+                mant = crucero + max(0.0, integ)
+                if err < v.get("cerca_objetivo_kmh", 10):
+                    tope = min(acel_max, mant + v.get("cerca_extra", 0.10) + 0.015 * max(0.0, err))
+                if -err <= v.get("sin_soltar_kmh", 8):
+                    acel = max(acel, v.get("piso_crucero", 0.5) * mant)
+            acel = max(0.0, min(acel, tope))
             if 0.0 < acel < acel_max and abs(err) < 15:
                 integ += v.get("ki_acelerador", 0.012) * err * dt
                 integ = max(-0.25, min(v.get("integral_acelerador_max", 0.4), integ))
@@ -1409,10 +1439,16 @@ class Autopiloto:
                 acel = min(acel, crucero)
             sube = v["subida_acelerador_por_seg"] * dt * (v.get("suave_lenta_subida_factor", 0.5) if suave_lenta else 1.0)
             baja = v.get("bajada_acelerador_por_seg", 1.5) * dt
-            acel = max(prev - baja, min(prev + sube, acel))
+            base = prev
+            if suave_v and err > -2:
+                base = max(prev, min(acel, crucero))   # 3.2.4: tras soltar/frenar, volver al de mantener de inmediato
+            acel = max(prev - baja, min(base + sube, acel))
         else:
             acel = 0.0
             freno = min(v["freno_max"], 0.10 + (-err) / 50)
+            if suave_v and suave_lenta and self.kmh - obj < v.get("freno_fuerte_exceso_kmh", 15):
+                # 3.2.4: con poco exceso, toque de freno suave (un pulso de 0,3 bajaba ~20 km/h en GTA)
+                freno = min(freno, v.get("freno_suave", 0.15))
         self.integ_acel = integ
         # frenar a pulsos: GTA frena fuerte y el HUD tarda en mostrarlo
         if freno > 0:
@@ -1901,8 +1937,44 @@ class Autopiloto:
         """2.3.2: funciones en prueba (pestaña Experimental). Encendidas por defecto."""
         return bool(self.cfg.get("experimental", {}).get(clave, True))
 
-    def dist_punto(self):
+    def _hud_metros(self):
         return self.hud.estado.get("metros") if self.hud else None
+
+    def dist_punto(self):
+        """Distancia al punto del HUD; 3.2.3: si la lectura es un dígito mal leído (5090 en vez de 5690),
+        la que cuadra con lo recorrido."""
+        m = self._hud_metros()
+        c = getattr(self, "_corr_dist", None)
+        if c is not None and m is not None and m == c["raw"]:
+            return c["v"]
+        return m
+
+    def _corregir_distancia(self, m):
+        """3.2.3: una lectura que no cuadra con lo que el camión anduvo (más de 150 m de diferencia) y que,
+        cambiando UN dígito de los que se confunden, sí cuadra, se toma como mal leída y se reemplaza por la
+        distancia esperada (la última buena menos lo recorrido). Los saltos reales del GPS no se tocan."""
+        self._corr_dist = None
+        ref = getattr(self, "_dref", None)
+        if m is None or ref is None or ref["tramo"] != self.tramo or self.rutas_mod is None:
+            return m
+        recorrido = max(0.0, self.odo - ref["odo"])
+        esperado = ref["d"] - recorrido
+        # 3.2.7: margen que crece con lo recorrido desde la referencia (el odómetro por velocidad también se desvía)
+        if abs(m - esperado) <= 150 + 0.1 * recorrido or esperado < 300:
+            return m
+        try:
+            variantes = self.rutas_mod._variantes(m)
+        except Exception:  # noqa
+            return m
+        if not any(abs(v - esperado) <= 100 for v in variantes):      # 3.2.7: 100 m (5,00 leído por 5,67)
+            return m
+        v = float(round(esperado))
+        self._corr_dist = {"raw": m, "v": v}
+        if getattr(self, "_corr_aviso", None) != m:
+            self._corr_aviso = m
+            print(f"\n[i] Distancia mal leída: {_km(m)} -> uso {_km(v)} (cuadra con lo recorrido).")
+            self.incidente(f"distancia mal leída: {m:.0f} -> {v:.0f}")
+        return v
 
     def esperar_juego(self):
         """Hemos llegado (o la ruta desapareció): esperar el menú/barra y la ruta siguiente."""
@@ -2187,6 +2259,9 @@ class Autopiloto:
         """La distancia inicial se estima con cada lectura del HUD: distancia + lo recorrido desde que se empezó
         a buscar. Se reconoce con la mediana de las primeras lecturas y, durante 40 s, si 3 lecturas seguidas
         coinciden con OTRO recorrido, se corrige (p. ej. el HUD mostró 5630 varios segundos y era 5530)."""
+        if self.ruta_elegida is not None:                 # 3.2.5: elegido a mano: no reconocer, solo revisar
+            self._revisar_elegida(d)
+            return
         if self.ruta_buscar_desde is None or self.tramo != 1 or d is None:
             return
         if d < 300:                              # ninguna ruta empieza tan cerca: esperar la distancia nueva
@@ -2209,6 +2284,10 @@ class Autopiloto:
             est = _mediana(m[-5:])
             r = self.rutas_mod.reconocer(self.rutas, est, carg)
             if r is not None:
+                d0 = r.get("distancia_inicial")
+                if d0 is not None and abs(est - d0) > r.get("tolerancia", 80):
+                    # 3.2.3: se reconoció cambiando un dígito: la distancia de ahora es la de la ruta menos lo recorrido
+                    self._dref_semilla = float(d0) - (self.odo - rec["odo0"])
                 self._fijar_recorrido(r, carg, est, "reconocido")
             elif ahora - rec["t0"] > 10:
                 self._rec_desconocido = True
@@ -2226,6 +2305,47 @@ class Autopiloto:
             self._fijar_recorrido(r, carg, est, "corregido")
             print(f"[i] (antes: {antes})")
 
+    def elegir_recorrido(self, archivo):
+        """3.2.5: recorrido elegido a mano (None = automático). Vale hasta que termine el trabajo."""
+        if not archivo or self.rutas_mod is None:
+            if self.ruta_elegida is not None:
+                print("[i] Recorrido: automático (se reconoce por la distancia al cargar).")
+            self.ruta_elegida = None
+            return
+        r = next((x for x in self.rutas.get("rutas", []) if x.get("_archivo") == archivo), None)
+        if r is None:
+            print(f"[!] No encuentro el recorrido {archivo} en datos/rutas.")
+            return
+        self.ruta_elegida = archivo
+        self._aviso_elegida = False
+        self._aplicar_elegida()
+        print(f"\n[i] Recorrido elegido a mano: {self.recorrido}. Se usan sus reglas hasta terminar el trabajo.")
+
+    def _aplicar_elegida(self):
+        if self.ruta_elegida is None or self.rutas_mod is None:
+            return
+        r = next((x for x in self.rutas.get("rutas", []) if x.get("_archivo") == self.ruta_elegida), None)
+        if r is None:
+            return
+        self.ruta_act = r
+        self._rec = None
+        self._rec_desconocido = False
+        self.ruta_buscar_desde = None
+        self.recorrido = self.rutas_mod.nombre_recorrido(r, getattr(self, "cargamento", None))
+        self.regla = None
+
+    def _revisar_elegida(self, d):
+        """Aviso (una vez) si la distancia no puede ser de ese recorrido: más que su distancia inicial."""
+        r = self.ruta_act
+        if r is None or d is None or self.tramo != 1 or getattr(self, "_aviso_elegida", False):
+            return
+        d0 = r.get("distancia_inicial")
+        if d0 is not None and d > d0 + 300:
+            self._aviso_elegida = True
+            print(f"\n[!] Elegiste {r.get('nombre')}, pero faltan {_km(d)} (ese recorrido empieza en {_km(d0)}). "
+                  f"Revisa la elección.")
+            self.avisar("aviso", "¿Recorrido equivocado?", f"Elegiste {r.get('nombre')} y la distancia no cuadra.")
+
     def _fijar_recorrido(self, r, carg, est, como):
         self.ruta_act = r
         self._rec_desconocido = False
@@ -2238,7 +2358,7 @@ class Autopiloto:
             return
         # distancia filtrada: una lectura suelta que salta más de 150 m (mala lectura, o el GPS
         # recalculando un instante) no cambia de regla; si se repite, sí
-        d_raw = self.dist_punto()
+        d_raw = self._corregir_distancia(self._hud_metros())
         d_f = getattr(self, "dist_filtrada", None)
         if d_raw is None:
             d = d_f
@@ -2274,12 +2394,16 @@ class Autopiloto:
                 self.ruta_act = None
                 self._rec = None
                 self._rec_desconocido = False
+                self._aplicar_elegida()
             elif self.tramo == 0:
                 self.ruta_act = None
                 self.ruta_buscar_desde = None
                 self.recorrido = None
                 self.cargamento = None
                 self.grab_pendiente = None
+                if self.ruta_elegida is not None and self._tramo_visto in (1, 2):
+                    print("[i] Trabajo terminado: el recorrido vuelve a «Automático».")
+                    self.ruta_elegida = None
             self.control_entregado = None       # v37: en el próximo trabajo vuelve a entregar el control
             self.grab_hecha = set()             # 2.1.0: grabaciones por distancia, una vez por tramo
             self.vuelta_lejos = False
@@ -2289,6 +2413,15 @@ class Autopiloto:
             d = d_raw
             self._tramo_visto = self.tramo
         self._reconocer_recorrido(ahora, d_raw if d_raw is not None else d)
+        if getattr(self, "_dref_semilla", None) is not None:        # 3.2.3: recorrido reconocido con un dígito mal leído
+            d = self.dist_filtrada = self._dref_semilla
+            self._dref_semilla = None
+        if d is not None:
+            ref = getattr(self, "_dref", None)
+            # 3.2.7: la referencia se renueva solo cuando la lectura CAMBIA: si el HUD se queda pegado en un
+            # valor (3,66 km durante 5 s a 90 km/h), lo recorrido se cuenta desde la primera vez que lo mostró
+            if ref is None or ref["tramo"] != self.tramo or abs(float(d) - ref["d_leida"]) >= 1:
+                self._dref = {"d": float(d), "d_leida": float(d), "odo": self.odo, "tramo": self.tramo}
         if self.tramo == 2 and not getattr(self, "vuelta_lejos", False) and d is not None:
             # recién descargado la distancia vieja (p. ej. 17 m) no es del punto final: esperar a la nueva
             d0 = getattr(self, "_d_inicio_tramo", None)
@@ -2403,6 +2536,7 @@ class Autopiloto:
             self.ruta_buscar_desde = time.time()
             self._rec = None
             self._rec_desconocido = False
+            self._aplicar_elegida()
         if self.estado == "ESPERANDO_RUTA":
             self.tramo_notif = objetivo          # se aplica cuando aparezca la ruta nueva
         else:
@@ -2519,6 +2653,8 @@ class Autopiloto:
                         "velocimetro": self.vel is not None, "debug": self.debug,
                         "lugar": self.lugar(),
                         "recorrido": getattr(self, "recorrido", None),
+                        "recorrido_elegido": self.ruta_elegida,
+                        "recorrido_archivo": (self.ruta_act or {}).get("_archivo"),
                         "zona": (self.hud.estado.get("zona") if self.hud else None),
                         "calle": (self.hud.estado.get("calle") if self.hud else None),
                         "metros": (self.hud.estado.get("metros") if self.hud else None),

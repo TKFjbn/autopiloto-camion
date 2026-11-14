@@ -138,7 +138,11 @@ class PanelFlotante:
         regla = e.get("regla")
         if regla:
             return l1, "Regla: " + regla, COLORES["regla"]
-        return l1, (e.get("motivo") or "").capitalize(), TENUE
+        rec = e.get("recorrido") or ""
+        if rec and e.get("recorrido_elegido"):
+            rec += " (elegido)"
+        partes = [x for x in ((e.get("motivo") or "").capitalize(), rec) if x]
+        return l1, "  ·  ".join(partes), TENUE
 
     def refrescar(self, corriendo, estado=None):
         """Muestra, oculta o actualiza el panel. Se llama desde el bucle de la ventana (~10 veces por segundo)."""

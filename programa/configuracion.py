@@ -69,6 +69,14 @@ DEFAULTS = {
         "asfalto_v_max": 150,
         "ipm_pixeles_min": 18,
         "ipm_busqueda_px": 22,
+        # 3.2.0: una sola línea (recta y clara) también sirve, con menos fuerza
+        "conf_min_una_linea": 0.55,   # desde esta confianza se usa la cámara aunque vea una sola línea
+        "peso_una_linea": 0.5,        # fuerza de la corrección en ese caso (1 = como con dos líneas)
+        "conf_una_linea": 0.65,       # confianza que da una sola línea perfecta (+0.05 si es la amarilla)
+        "ipm_franjas": 4,             # la línea debe verse en casi todas estas franjas, en la misma columna
+        "ipm_recta_tol_px": 8,        # cuánto se puede correr entre franjas (lo diagonal no cuenta)
+        "amarillo_dif_rel": 14,       # amarilla por color: cuánto más amarilla que su entorno
+        "bordillo_rojo": True,        # contar el borde rojo de la calzada como línea
     },
     "esquinas": {
         "giro_esquina_grados": 75,    # esquina cerrada: la ruta gira esto o más
@@ -77,6 +85,7 @@ DEFAULTS = {
         # giro TARDÍO en esquinas: seguir recto hasta llegar a la esquina y entonces girar fuerte
         "giro_tardio_grados": 55,     # esquinas de este ángulo o más se toman así
         "giro_tardio_px": 6,          # empieza a girar cuando la esquina está a X px (menos = más tarde)
+        "frente_flecha_px": 7.0,      # 3.2.1: de centro a donde el programa ve nacer la línea del GPS (3.2.2: 4,5 -> 7)
         "giro_tardio_ganancia": 1.4,  # fuerza extra del volante al girar en la esquina (menos = giro más abierto)
         "giro_tardio_muy_cerrada_grados": 80,  # esquinas aún más cerradas (calles angostas)...
         "giro_tardio_muy_cerrada_px": 3,       # ...avanzar más antes de girar
@@ -230,6 +239,7 @@ DEFAULTS = {
     },
     "experimental": {                 # 2.3.2: funciones en prueba (pestaña Experimental)
         "velocidad_suave_curvas": True,
+        "velocidad_sin_vaiven": True,  # 3.2.4: anticipar y no soltar del todo el acelerador por poco
         "trazados_comunes_vuelta": True,
         "rumbo_norte": True,          # 2.4.0: rumbo exacto con la N del minimapa (se guarda en el viaje)
         "mapa_ruta": True,            # 2.4.0: ventana del mapa de la ruta
@@ -546,7 +556,10 @@ def _cargar(ruta="config.json", guardar_migracion=True):
             print(f"[i] config.json actualizado a la versión {VERSION} (se mantuvo tu calibración, "
                   f"teclas y backend; copia anterior en mi_equipo/respaldos/config_v{ver}_respaldo.json).")
         return cfg
-    return _fusionar(DEFAULTS, usuario)
+    cfg = _fusionar(DEFAULTS, usuario)
+    if cfg.get("esquinas", {}).get("frente_flecha_px") == 4.5:      # 3.2.2: el valor de la 3.2.1 pasa a 7
+        cfg["esquinas"]["frente_flecha_px"] = 7.0
+    return cfg
 
 
 def guardar(cfg, ruta=None):

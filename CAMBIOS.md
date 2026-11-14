@@ -7,6 +7,65 @@ Versionado semántico: **MAYOR.MENOR.PARCHE**.
 
 Los **datos** (`datos/`) llevan su propia versión en `datos/datos.json`. Cada entrega dice si es de **programa** (hay que actualizar `programa/`) o **solo datos** (basta con reemplazar `datos/`).
 
+## Programa 3.2.7 · Datos 1.2.5 (2026-11-14)
+Tipo: **programa** (arreglo de la corrección de distancia de la 3.2.3).
+- **Corrección de distancia equivocada en Strawberry:** el lector del HUD se quedó pegado en 3,66 km unos 5 s a 90 km/h; la 3.2.3 contaba lo recorrido desde la última vuelta (no desde que apareció ese valor), así que cuando volvió a leer bien (3,34 km) lo tomó por mal leído y usó 3,63 km. Con esa distancia no frenó antes del separador de vías (llegó a 89 con límite 65). Ahora:
+  - lo recorrido se cuenta desde la primera vez que el HUD mostró el valor (si se queda pegado, no se reinicia);
+  - el margen crece con lo recorrido (150 m + 10 %);
+  - el dígito cambiado puede quedar a 100 m de lo esperado (en el puente se leyó «5,00» con el camión en 5,67).
+  Probado con las lecturas de los dos viajes: en Strawberry no corrige nada; en el puente sigue corrigiendo 5,09 y 5,00.
+
+## Programa 3.2.6 · Datos 1.2.5 (2026-11-14)
+Tipo: **programa** (solo la ventana). La conducción y los datos no cambian.
+- **«Empezar en» sigue la etapa:** mientras el autopiloto anda, el selector muestra la etapa en que va; al terminar el trabajo vuelve solo a «0 - Ir a cargar».
+- **Se recuerda dónde quedó:** al detener o cerrar el programa se guardan la etapa y el recorrido del momento (el elegido o el que se reconoció solo). Al abrir de nuevo, «Empezar en» y «Recorrido» quedan como estaban, así no hay que cambiarlos a mano. Al terminar el trabajo se guarda «0» y «Automático».
+
+## Programa 3.2.5 · Datos 1.2.5 (2026-11-14)
+Tipo: **programa** (ventana y cómo se elige el recorrido). Los datos no cambian.
+- **Elegir el recorrido a mano:** nuevo selector **«Recorrido»** junto a «Empezar en» (Automático, Granja 1, Granja 2, Globe Oil; la lista sale de `datos/rutas/`). Si activas a mitad de camino el recorrido no se puede reconocer por la distancia (en el viaje de las 08:00 empezó a 1,90 km, quedó «desconocido» y no usó ninguna regla en la ida ni en la vuelta). Al elegirlo:
+  - se usa desde ya, sin reconocer por la distancia, con sus reglas en la ida y en la vuelta;
+  - vale hasta que termine el trabajo; al volver a «ir a cargar» el selector pasa solo a «Automático»;
+  - si la distancia no puede ser de ese recorrido (más que su distancia inicial), sale un aviso, pero se respeta la elección;
+  - la ventana y el panel muestran el recorrido con «(elegido)».
+- El aviso «No reconozco el recorrido» ahora dice que se puede elegir en «Recorrido».
+
+## Programa 3.2.4 · Datos 1.2.5 (2026-11-14)
+Tipo: **programa** (cambia la lógica del control de velocidad). Los datos no cambian.
+- **Sin sube y baja de velocidad** (experimental, encendida: «Velocidad sin sube y baja»). En Banning (5,51–5,36 km, límite 40) la velocidad iba y venía cada 5–6 s entre ~24 y ~48 km/h (el velocímetro del juego lo confirma; pasaba igual en la 2.6 y la 2.7). El ciclo: se pasaba un poco, soltaba el acelerador del todo y daba un toque de freno (en GTA eso baja ~20 km/h), volvía a acelerar despacio, caía a 24, aceleraba a tope (0,6) y se volvía a pasar. Ahora, con límites bajos (reglas, curvas, esquinas):
+  - cerca del objetivo el acelerador queda acotado alrededor del que mantiene la velocidad (no sube a tope por estar 5 km/h abajo);
+  - si se pasa por poco (hasta 8 km/h) baja el acelerador a la mitad del de mantener, en vez de soltarlo;
+  - si tiene que frenar con poco exceso (menos de 15 km/h), el toque es suave (0,15 en vez de 0,35);
+  - tras soltar o frenar vuelve enseguida al acelerador de mantener.
+  En una simulación con la respuesta medida en el viaje (≈7 km/h/s al acelerar, velocímetro ~1 s tarde) el vaivén pasa de 21–48 a 33–47 km/h (36–43 con menos retraso). Se puede apagar en Experimental.
+
+## Programa 3.2.3 · Datos 1.2.5 (2026-11-14)
+Tipo: **programa y datos**. Cambia la lógica de la lectura de distancia; el resto son reglas.
+- **Distancia mal leída tras cargar:** en el puente de Elysian Island el HUD mostraba 5,69 → 5,66 km y el programa leyó «5,09» y «5,00» durante 16 s (el 6 se confundía con 0 sobre el fondo claro). El recorrido se reconoció igual (desde la 2.7.2 se prueba cambiando un dígito), pero la distancia seguía mal: no se aplicó la regla de entrada al puente (20 km/h, a la izquierda), entró a 36 km/h y chocó el poste a 5,67 km. Ahora:
+  - si el recorrido se reconoce cambiando un dígito, la distancia pasa a ser la de la ruta menos lo recorrido;
+  - una lectura que no cuadra con lo que el camión anduvo (más de 150 m) y que con UN dígito cambiado sí cuadra se toma como mal leída y se usa la distancia esperada (aviso «Distancia mal leída»). Los saltos reales del GPS no se tocan.
+- **Datos, camino a cargar:** la regla queda en dos: 270–150 m (−2,5, abrir el giro antes de la esquina) y **150–115 m sin desplazamiento** (con −2,5 rozaba el remolque y el contenedor de la izquierda al entrar al patio). Las dos a 25 km/h.
+- **Datos, fin del puente (5,64–5,60 km de Granja 1; vale también para Granja 2):** desplazamiento de −0,5 a **0** (rozaba el bloque de concreto de la izquierda).
+- **Datos, esquina a la salida del puente (5,60–5,56 km):** velocidad de esquina de 28 a **24 km/h** (a 30 se abría fuera de la calle).
+
+## Programa 3.2.2 · Datos 1.2.4 (2026-11-14)
+Tipo: **programa y datos** (ajuste de valores; la lógica es la de la 3.2.1).
+- **Programa:** `esquinas.frente_flecha_px` de 4,5 a **7**. En el video de la esquina de carga, con la esquina ya en la flecha, el programa la medía a 6,3–7,5 px del centro (no usa los primeros 13 px de la línea, la prolonga desde más adelante), así que con 4,5 todavía dudaba 0,5–1 s antes de girar. Si tenías el 4,5 de la 3.2.1 guardado, pasa solo a 7.
+- **Datos, camino a cargar (común, 270–120 m):** máximo **25 km/h**. Llegaba a la esquina a 33 km/h, abría el giro y rozaba la grúa del puerto (en la 2.x, que partía ahí mismo, llegaba a 13–25 km/h).
+- **Datos, Granja 2 (ida, 2,30–2,18 km):** vuelve la regla «Autopista: un poco a la izquierda (evitar que el GPS cambie la ruta)», −1,5, solo en esta ruta. Se había borrado en la 2.5.0 al compartir el tramo con Granja 1, y en el primer viaje de Granja 2 desde entonces la ruta del GPS cambió ahí y el camión chocó a 71 km/h. Granja 1 no cambia.
+
+## Programa 3.2.1 · Datos 1.2.3 (2026-11-14)
+Tipo: **programa** (cambia la lógica de las esquinas cerradas). Los datos no cambian.
+- **Esquinas de 90° (seguía de largo):** cuando la esquina ya está bajo la flecha, el programa sigue recto hasta tenerla a 3 px o menos (o lo que diga la regla). Pero la línea del GPS nace en la **punta** de la flecha, unos 4,5 px por delante de su centro, así que esa distancia nunca bajaba del margen: el camión seguía recto hasta casi detenerse y recién giraba («bloqueado frente a la esquina»). Se vio en el video del camino a cargar (165 → 145 m sin girar, con la ruta ya a 90°), en Banning y en Davis. Ahora esa distancia se mide desde la punta (`esquinas.frente_flecha_px` = 4,5). Las reglas no cambian: sus márgenes (3 px, 1,5 px…) vuelven a medir lo que medían.
+- **Elegir la flecha con zoom:** en «Calibrar todo», la tecla **F** abre el minimapa ampliado alrededor de la flecha; clic para poner el centro (se puede repetir), flechas del teclado para moverlo de a 1 px, ENTER para aceptar, ESC para cancelar.
+
+## Programa 3.2.0 · Datos 1.2.3 (2026-11-14)
+Tipo: **programa** (cambia la lógica de la cámara de carril). Los datos no cambian. Hay que **volver a calibrar el carril** si el trapecio toca el tablero o el limpiaparabrisas (ver abajo).
+- **La amarilla se reconoce por su color.** De noche, con las luces, la doble amarilla casi no es más clara que el asfalto (que se ve azulado), así que antes casi no se marcaba. Ahora se busca por cuánto más amarilla es que su entorno. También cuenta el **borde rojo** de la calzada (se puede apagar: `carril.bordillo_rojo`).
+- **Solo cuentan las líneas rectas.** La vista desde arriba se divide en 4 franjas y una línea vale solo si aparece en casi todas, en la misma columna. Lo que va en diagonal (el limpiaparabrisas, basura, sombras) ya no se toma por una línea.
+- **Una sola línea también sirve, con menos fuerza.** Antes, con una sola línea la confianza quedaba en 0,5 y la cámara no dirigía nunca. Ahora una línea recta y clara da hasta 0,65 (0,70 si es la amarilla) y la cámara corrige **a la mitad de fuerza** desde 0,55 (`conf_min_una_linea`, `peso_una_linea`). Con las dos líneas sigue igual que antes (desde 0,75, fuerza entera).
+- **La vista desde arriba dice qué ve:** «izq: amarilla / línea / no se ve» y lo mismo a la derecha, en la calibración y en la pestaña Conducir. La amarilla se pinta amarilla y lo demás naranjo.
+- **Cómo calibrar el carril:** en una recta, centrado, con los lados del trapecio **sobre** las líneas (izquierda sobre la amarilla, derecha sobre el borde de tu carril), el borde de abajo un poco por encima del tablero y sin que la esquina derecha toque el limpiaparabrisas. En la vista desde arriba las líneas deben caer sobre las verdes.
+
 ## Programa 3.1.0 · Datos 1.2.3 (2026-11-14)
 Tipo: **solo programa** (interfaz, avisos y actualizaciones). No cambia la conducción, la calibración ni los datos.
 - **Ventana reorganizada:** los botones de todos los días (Iniciar, Detener, Activar / desactivar, Saltar etapa, Ayuda de carril, Grabar, Hito) están siempre a la vista, en cualquier vista, bajo el estado del viaje (estado, recorrido, etapa, velocidad, distancia, condición, lugar y regla). Debajo van «Empezar en», la vista de depuración y guardar el viaje. Calibración, Ajustes y Experimental siguen en sus pestañas. La pestaña Conducir queda con los mandos, el minimapa y la cámara.

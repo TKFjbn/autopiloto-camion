@@ -401,6 +401,62 @@ def _color_ruta(mini, cfg):
     return rangos
 
 
+def elegir_flecha(img, mm, actual):
+    """3.2.1: elegir el centro de la flecha del jugador con zoom (como el color de la ruta).
+    Muestra el minimapa ampliado; clic = poner el centro (se puede repetir), flechas del teclado = mover
+    1 px, ENTER = aceptar, ESC = cancelar. Devuelve (x, y) en la captura, o None."""
+    E = 6
+    x0, y0 = int(mm["x"]), int(mm["y"])
+    w, h = int(mm["w"]), int(mm["h"])
+    # alrededor de la flecha: un recorte de ~1/2 del minimapa, ampliado
+    rw, rh = max(40, w // 2), max(30, h // 2)
+    cx, cy = actual
+    ax0 = int(max(0, min(img.shape[1] - rw, cx - rw / 2)))
+    ay0 = int(max(0, min(img.shape[0] - rh, cy - rh / 2)))
+    rec = img[ay0:ay0 + rh, ax0:ax0 + rw]
+    big = cv2.resize(rec, None, fx=E, fy=E, interpolation=cv2.INTER_NEAREST)
+    punto = [float(cx), float(cy)]
+    raton = [None]
+
+    def clic(ev, mx, my, *_):
+        if ev == cv2.EVENT_LBUTTONDOWN:
+            punto[0], punto[1] = ax0 + mx / E, ay0 + my / E
+        elif ev == cv2.EVENT_MOUSEMOVE:
+            raton[0] = (mx, my)
+
+    nombre = "Flecha: clic en el CENTRO de la flecha (flechas = mover 1 px). ENTER=aceptar, ESC=cancelar"
+    ventana_encima(nombre)
+    cv2.imshow(nombre, big)
+    cv2.setMouseCallback(nombre, clic)
+    del x0, y0
+    while True:
+        v = big.copy()
+        if raton[0] is not None:
+            cv2.drawMarker(v, raton[0], (200, 200, 200), cv2.MARKER_CROSS, 24, 1)
+        px_, py_ = int(round((punto[0] - ax0) * E)), int(round((punto[1] - ay0) * E))
+        cv2.drawMarker(v, (px_, py_), (0, 0, 255), cv2.MARKER_CROSS, 40, 2)
+        cv2.circle(v, (px_, py_), 3, (0, 255, 255), -1)
+        _rotular(v, ["Clic en el centro de la flecha (no en la punta)",
+                     "Flechas del teclado: mover 1 px   ENTER aceptar   ESC cancelar"], 8, 22, 22, 0.55, 1)
+        cv2.imshow(nombre, v)
+        k = cv2.waitKeyEx(30)
+        if k in (13, 10):
+            cv2.destroyWindow(nombre)
+            return punto[0], punto[1]
+        if k == 27:
+            cv2.destroyWindow(nombre)
+            return None
+        # flechas: Windows (2424832...) / Linux (65361...)
+        if k in (2424832, 65361):
+            punto[0] -= 1
+        elif k in (2555904, 65363):
+            punto[0] += 1
+        elif k in (2490368, 65362):
+            punto[1] -= 1
+        elif k in (2621440, 65364):
+            punto[1] += 1
+
+
 def capturar_juego(espera, tecla, continuar):
     """Captura SOLO la ventana del juego si se encuentra. Devuelve (img, origen (x, y), rect o None, título)."""
     import mss
@@ -495,12 +551,10 @@ def calibrar(config=None, solo=None, imagen=None, espera=0, continuar=None):
                 mm = {k_: int(round(v_ / esc)) for k_, v_ in zip("xywh", (x, y, w, h))}
                 det["como"] = "a mano"
         if k in (ord("f"), ord("F")):
-            punto = []
-            cv2.setMouseCallback(nombre, lambda ev, mx, my, *_: punto.append((mx / esc, my / esc))
-                                 if ev == cv2.EVENT_LBUTTONDOWN else None)
-            print("Haz clic en el centro de la flecha del jugador.")
-            while not punto and cv2.waitKey(30) != 27:
-                pass
+            s0 = mm["w"] / geometria.REF_W
+            actual = (mm["x"] + geometria.REF_JUGADOR[0] * s0, mm["y"] + geometria.REF_JUGADOR[1] * s0)
+            p_ = elegir_flecha(img, mm, actual)
+            punto = [p_] if p_ else []
             if punto:
                 s = mm["w"] / geometria.REF_W
                 mm = dict(mm, x=int(round(punto[0][0] - geometria.REF_JUGADOR[0] * s)),

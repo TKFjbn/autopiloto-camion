@@ -26,16 +26,16 @@
         "desde": 5640,
         "hasta": 5600,
         "max_kmh": 25,
-        "desplazamiento_px": -0.5,
-        "nota": "Fin del puente: despacio antes de la esquina (bloque de concreto a la izquierda, reja a la derecha)"
+        "desplazamiento_px": 0,
+        "nota": "Fin del puente: despacio antes de la esquina (bloque de concreto a la izquierda, reja a la derecha) · 1.2.5: sin ir a la izquierda (con −0,5 rozaba el bloque de concreto)"
       },
       {
         "desde": 5600,
         "hasta": 5560,
         "desplazamiento_px": 0.5,
-        "esquina_kmh": 28,
+        "esquina_kmh": 24,
         "giro_tardio_px": 2,
-        "nota": "Esquina a la salida del puente: derecho y un poco a la derecha, pasar las rejas y recién girar"
+        "nota": "Esquina a la salida del puente: derecho y un poco a la derecha, pasar las rejas y recién girar · 1.2.5: esquina a 24 km/h (a 30 se abría fuera de la calle)"
       },
       {
         "desde": 5560,

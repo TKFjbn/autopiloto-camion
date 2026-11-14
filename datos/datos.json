@@ -1,5 +1,5 @@
 {
-  "version": "1.2.3",
+  "version": "1.2.5",
   "programa_minimo": "2.5.1",
   "formato": 1,
   "descripcion": "Datos compartibles del autopiloto: reglas por recorrido (rutas/), grabaciones de recorridos (grabaciones/) y trazados (trazados/). Para pasárselos a otro jugador, envía esta carpeta entera.",

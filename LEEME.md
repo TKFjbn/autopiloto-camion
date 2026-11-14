@@ -1,4 +1,4 @@
-# Autopiloto de camión (GTA V RP) · versión 3.1.0
+# Autopiloto de camión (GTA V RP) · versión 3.2.7
 
 Sigue la ruta roja del minimapa en las 3 partes en que se conduce y espera solo en las paradas.
 No toca el launcher ni la carpeta del juego: lee la pantalla y simula teclas o un mando.

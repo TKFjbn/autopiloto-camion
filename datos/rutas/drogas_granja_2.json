@@ -9,6 +9,13 @@
   "reglas": {
     "1": [
       {
+        "desde": 2300,
+        "hasta": 2180,
+        "desplazamiento_px": -1.5,
+        "solo_esta_ruta": true,
+        "nota": "Autopista: un poco a la izquierda (evitar que el GPS cambie la ruta). Vuelve en 1.2.4: se había borrado al compartir con Granja 1 y chocó en 2,20 km"
+      },
+      {
         "desde": 2100,
         "hasta": 2000,
         "desplazamiento_px": 1.5,

@@ -56,6 +56,7 @@ ESTADOS = {  # estado interno -> (texto, color)
     "GRABANDO": ("Grabando", "#da373c"), "REPRODUCIENDO": ("Repitiendo grabación", "#16a085"),
     "DETENIDO": ("Detenido", "#4e5058"), "TAREA": ("Calibrando / probando", "#16a085"),
 }
+AUTO_RECORRIDO = "Automático"
 TRAMOS = ["0 - Ir a cargar", "1 - Ir al punto de entrega (A)", "2 - Volver a la zona de trabajo (B)"]
 
 TEMAS = {
@@ -76,6 +77,7 @@ TEMAS = {
 }
 
 PREFS_DEFECTO = {
+    "sesion": {"tramo": 0, "recorrido": ""},   # 3.2.6: etapa y recorrido donde quedó el programa al detenerse
     "tema": "oscuro",
     "vista": "completa",                 # completa, compacta, mini
     "ayuda": True,                       # mensajes al pasar el mouse
@@ -237,6 +239,7 @@ class App:
         self._tecla_panel = False
         self._t_panel = 0.0
         self._construir()
+        self._restaurar_sesion()
         self.aplicar_tema(self.prefs["tema"], guardar=False)
         self.notif = notificador.Notificador(root, self.prefs["notificaciones"], self._titulo_juego())
         self.poner_vista(self.prefs["vista"], guardar=False)
@@ -272,6 +275,30 @@ class App:
         n["tipos"] = dict(notificador.DEFECTO["tipos"], **p["notificaciones"].get("tipos", {}))
         p["notificaciones"] = n
         return p
+
+    def _restaurar_sesion(self):
+        """3.2.6: «Empezar en» y «Recorrido» vuelven a donde quedaron al detener o cerrar el programa."""
+        ses = self.prefs.get("sesion") or {}
+        t = ses.get("tramo", 0)
+        if isinstance(t, int) and 0 <= t < len(TRAMOS):
+            self.var_tramo.set(TRAMOS[t])
+        arch = ses.get("recorrido") or ""
+        nombre = next((n for n, a in self.recorridos if a == arch), None) if arch else None
+        self.var_recorrido.set(nombre or AUTO_RECORRIDO)
+        if t or nombre:
+            print(f"[i] Sigo donde quedé: {TRAMOS[t] if 0 <= t < len(TRAMOS) else t}"
+                  + (f", recorrido {nombre}" if nombre else "") + ".")
+
+    def _guardar_sesion(self, e):
+        t = e.get("tramo")
+        if not isinstance(t, int) or not 0 <= t < len(TRAMOS):
+            return
+        if self.var_tramo.get() != TRAMOS[t]:
+            self.var_tramo.set(TRAMOS[t])            # 3.2.6: «Empezar en» sigue la etapa (al terminar vuelve a 0)
+        ses = {"tramo": t, "recorrido": (e.get("recorrido_archivo") or "") if t in (1, 2) else ""}
+        if ses != self.prefs.get("sesion"):
+            self.prefs["sesion"] = ses
+            self.guardar_prefs()
 
     def guardar_prefs(self):
         try:
@@ -555,6 +582,17 @@ class App:
         cb.bind("<<ComboboxSelected>>", self.cambiar_tramo)
         self._ayuda(cb, "En qué etapa del trabajo estás. Normalmente se detecta sola; cámbiala si se desincroniza "
                         "(p. ej. si cancelaste un trabajo).")
+        # 3.2.5: recorrido elegido a mano (si se activa a mitad de camino no se puede reconocer por la distancia)
+        ttk.Label(opc, text="Recorrido:").pack(side="left")
+        self.recorridos = self._lista_recorridos()
+        self.var_recorrido = tk.StringVar(value=AUTO_RECORRIDO)
+        cb = self.cb_recorrido = ttk.Combobox(opc, textvariable=self.var_recorrido, state="readonly", width=24,
+                                              values=[AUTO_RECORRIDO] + [n for n, _a in self.recorridos])
+        cb.pack(side="left", padx=(6, 12))
+        cb.bind("<<ComboboxSelected>>", self.cambiar_recorrido)
+        self._ayuda(cb, "Qué recorrido es. «Automático»: se reconoce por la distancia justo después de cargar. Si "
+                        "activas a mitad de camino, elígelo aquí para que use sus reglas en la ida y la vuelta. "
+                        "Al terminar el trabajo vuelve solo a «Automático».")
         self.var_debug = tk.BooleanVar(value=True)
         self.var_csv = tk.BooleanVar(value=True)
         c = ttk.Checkbutton(opc, text="Vista de depuración", variable=self.var_debug, command=self.cambiar_debug)
@@ -905,6 +943,11 @@ class App:
          "menos fuerza y frena solo si se pasa más de 10 km/h. Evita el sube y baja de velocidad (19 ↔ 51 km/h en la "
          "curva de Banning, frenadas en la esquina de Maze Bank) que pasa porque el velocímetro del HUD llega 1-2 s "
          "tarde. Si entra muy rápido a alguna esquina, apágala."),
+        ("velocidad_sin_vaiven", "Velocidad sin sube y baja", "3.2.4",
+         "Al pasarse un poco del límite (hasta 8 km/h) baja el acelerador a la mitad del que mantiene la velocidad en "
+         "vez de soltarlo del todo (en GTA soltarlo ya frena ~15 km/h por segundo), se anticipa a si la velocidad "
+         "viene subiendo o bajando y, tras frenar, vuelve enseguida al acelerador de mantener. Evita el vaivén "
+         "24 ↔ 48 km/h con límite 40 (Banning). Si se pasa de velocidad en algún lugar, apágala."),
         ("trazados_comunes_vuelta", "Trazados comunes en la vuelta", "2.3.2",
          "Los trazados de la vuelta grabados desde 2,3 km (el final, igual para todos los recorridos) se usan en "
          "todos los recorridos, no solo en el que se grabaron."),
@@ -1723,7 +1766,13 @@ class App:
         self._poner_avisos(e.get("problemas"))
         txt, col = ESTADOS.get(e["estado"], (e["estado"], "#555"))
         self.lbl_estado.config(text=txt, bg=col)
-        self.lbl_recorrido.config(text=e.get("recorrido") or "Sin recorrido")
+        self.lbl_recorrido.config(text=(e.get("recorrido") or "Sin recorrido")
+                                  + (" (elegido)" if e.get("recorrido_elegido") else ""))
+        if not e.get("recorrido_elegido") and self.var_recorrido.get() != AUTO_RECORRIDO \
+                and getattr(self, "_elegido_visto", False):
+            self.var_recorrido.set(AUTO_RECORRIDO)       # 3.2.5: terminó el trabajo: vuelve a automático
+        self._elegido_visto = bool(e.get("recorrido_elegido"))
+        self._guardar_sesion(e)
         self.lbl_etapa.config(text=e["etapa"])
         self.v_vel.config(text=f"{int(e['kmh'])} / {float(e['kmh_obj']):.0f}")
         self.v_dist.config(text=_km(e.get("metros")))
@@ -2157,6 +2206,9 @@ class App:
                     return
                 cfg = configuracion.cargar(CONFIG)
                 self.ap = autopiloto.Autopiloto(cfg, tramo, self.var_debug.get(), log, interfaz=self.puente)
+                arch = self._archivo_recorrido()
+                if arch:
+                    self.ap.comandos.put(f"recorrido:{arch}")
                 if log:
                     print(f"[i] Guardando el viaje en {os.path.relpath(log, carpetas.RAIZ)}")
                 self.ap.ejecutar()
@@ -2178,6 +2230,29 @@ class App:
     def orden(self, cmd):
         if self.ap is not None:
             self.ap.comandos.put(cmd)
+
+    @staticmethod
+    def _lista_recorridos():
+        try:
+            import rutas
+            d = rutas.cargar()
+            out = []
+            for r in d.get("rutas", []):
+                n = r.get("nombre") or r.get("_archivo")
+                if r.get("cargamento"):
+                    n = f"{n} ({r['cargamento']})"
+                out.append((n, r.get("_archivo")))
+            return sorted(out)
+        except Exception as e:  # noqa
+            print(f"[!] No se pudo leer la lista de recorridos: {e}")
+            return []
+
+    def _archivo_recorrido(self):
+        return dict(self.recorridos).get(self.var_recorrido.get())
+
+    def cambiar_recorrido(self, _evt=None):
+        if self.ap is not None:
+            self.ap.comandos.put(f"recorrido:{self._archivo_recorrido() or ''}")
 
     def cambiar_tramo(self, _evt=None):
         if self.ap is not None and self.var_tramo.get() in TRAMOS:
