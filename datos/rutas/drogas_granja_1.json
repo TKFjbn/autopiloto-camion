@@ -1,0 +1,196 @@
+{
+  "formato": 1,
+  "programa_minimo": "2.0.0",
+  "nombre": "Granja 1",
+  "cargamento": "Drogas",
+  "descripcion": "Droga: Circuito Redwood Lights (Vinewood Hills, la bajada)",
+  "distancia_inicial": 5690,
+  "tolerancia": 80,
+  "reglas": {
+    "1": [
+      {
+        "desde": 5710,
+        "hasta": 5665,
+        "max_kmh": 20,
+        "desplazamiento_px": -2.0,
+        "nota": "Puente de Elysian Island: entrar despacio, algo a la izquierda"
+      },
+      {
+        "desde": 5665,
+        "hasta": 5640,
+        "max_kmh": 40,
+        "desplazamiento_px": -2.0,
+        "nota": "Puente de Elysian Island: cruzar algo a la izquierda (farolas a la derecha)"
+      },
+      {
+        "desde": 5640,
+        "hasta": 5600,
+        "max_kmh": 25,
+        "desplazamiento_px": -0.5,
+        "nota": "Fin del puente: despacio antes de la esquina (bloque de concreto a la izquierda, reja a la derecha)"
+      },
+      {
+        "desde": 5600,
+        "hasta": 5560,
+        "desplazamiento_px": 0.5,
+        "esquina_kmh": 28,
+        "giro_tardio_px": 2,
+        "nota": "Esquina a la salida del puente: derecho y un poco a la derecha, pasar las rejas y recién girar"
+      },
+      {
+        "desde": 5560,
+        "hasta": 5500,
+        "desplazamiento_px": -2.5,
+        "nota": "Inicio de Banning: el GPS está corrido a la derecha, ir más a la izquierda"
+      },
+      {
+        "desde": 5500,
+        "hasta": 5200,
+        "max_kmh": 40,
+        "desplazamiento_px": -2.0,
+        "nota": "Banning: curva cerrada a la izquierda",
+        "esquina_kmh": 30
+      },
+      {
+        "desde": 5200,
+        "hasta": 5060,
+        "desplazamiento_px": 1.0,
+        "sin_freno": true,
+        "sin_bifurcacion": true,
+        "nota": "Autopia Parkway: inicio de la subida (sin frenar; un poco a la derecha, rozaba la barrera izquierda)"
+      },
+      {
+        "desde": 5060,
+        "hasta": 4960,
+        "desplazamiento_px": -0.5,
+        "sin_freno": true,
+        "sin_bifurcacion": true,
+        "nota": "Autopia Parkway: subida hasta Maze Bank Arena (sin frenar; un poco a la izquierda: con +1,0 rozaba la barrera derecha al terminar la curva, 2026-11-11)"
+      },
+      {
+        "desde": 4960,
+        "hasta": 4800,
+        "desplazamiento_px": 0,
+        "esquina_kmh": 35,
+        "nota": "Maze Bank Arena: esquina (no bajar tanto)"
+      },
+      {
+        "desde": 4780,
+        "hasta": 4650,
+        "max_kmh": 40,
+        "desplazamiento_px": -3.0,
+        "nota": "Davis Avenue (Maze Bank): farolas en el centro, pasar por la izquierda"
+      },
+      {
+        "desde": 4560,
+        "hasta": 4480,
+        "desplazamiento_px": 1.5,
+        "nota": "Davis Avenue: postes a la izquierda, un poco a la derecha"
+      },
+      {
+        "desde": 3420,
+        "hasta": 3300,
+        "max_kmh": 65,
+        "desplazamiento_px": 0,
+        "nota": "Strawberry: separador de vías (sobre la línea)"
+      },
+      {
+        "desde": 3250,
+        "hasta": 2900,
+        "desplazamiento_px": -1.5,
+        "nota": "Autopista (Mirror Park): barrera a la derecha, un poco a la izquierda (con -1,0 chocó la barrera a 3,16 km; más a la izquierda rozaba el muro izquierdo)"
+      },
+      {
+        "desde": 2700,
+        "hasta": 2500,
+        "max_kmh": 78,
+        "desplazamiento_px": -2.0,
+        "nota": "Vinewood Hills: Autopista de Los Santos (barreras a la derecha)"
+      },
+      {
+        "desde": 2360,
+        "hasta": 2250,
+        "desplazamiento_px": 0,
+        "esquina_kmh": 40,
+        "nota": "Subida: esquina (no bajar tanto)"
+      },
+      {
+        "desde": 2160,
+        "hasta": 2100,
+        "max_kmh": 45,
+        "desplazamiento_px": -2.0,
+        "anticipacion": 0.85,
+        "nota": "Salida a Vinewood Park Drive: se pegaba a la derecha antes de doblar (a la izquierda solo hasta 2,10 km)",
+        "esquina_kmh": 32
+      },
+      {
+        "desde": 2100,
+        "hasta": 2040,
+        "max_kmh": 45,
+        "desplazamiento_px": 0,
+        "anticipacion": 0.85,
+        "esquina_kmh": 32,
+        "nota": "Salida a Vinewood Park Drive: la esquina desde el centro (con -2,0 hasta la esquina abría mucho a la izquierda)"
+      },
+      {
+        "desde": 1850,
+        "hasta": 1650,
+        "max_kmh": 70,
+        "desplazamiento_px": 0,
+        "nota": "Vinewood Hills: Señora Road"
+      },
+      {
+        "desde": 1560,
+        "hasta": 1280,
+        "max_kmh": 70,
+        "desplazamiento_px": -2.5,
+        "nota": "Señora Road (recta): se salía a la derecha"
+      },
+      {
+        "desde": 1250,
+        "hasta": 950,
+        "max_kmh": 65,
+        "desplazamiento_px": -2.5,
+        "nota": "Vinewood Hills: curva en bajada (frenar antes, más a la izquierda: se abría a la derecha)"
+      }
+    ],
+    "2": [
+      {
+        "desde": 5420,
+        "hasta": 5250,
+        "max_kmh": 65,
+        "desplazamiento_px": 0,
+        "nota": "Señora Road (vuelta)"
+      },
+      {
+        "desde": 5150,
+        "hasta": 4900,
+        "max_kmh": 55,
+        "desplazamiento_px": -1.0,
+        "nota": "Señora Road (vuelta): curva a la derecha, se salía al terminarla"
+      },
+      {
+        "desde": 4750,
+        "hasta": 4450,
+        "max_kmh": 65,
+        "desplazamiento_px": -2.0,
+        "nota": "Vinewood Hills: Señora Road (vuelta): se salía por la derecha"
+      },
+      {
+        "desde": 4050,
+        "hasta": 3880,
+        "max_kmh": 60,
+        "desplazamiento_px": -3.0,
+        "anticipacion": 0.8,
+        "nota": "Señora Road (vuelta): paso sobre la autopista, no girar antes"
+      },
+      {
+        "desde": 3760,
+        "hasta": 3530,
+        "desplazamiento_px": 0,
+        "esquina_kmh": 32,
+        "nota": "Señora Road (vuelta): esquina muy cerrada"
+      }
+    ]
+  }
+}

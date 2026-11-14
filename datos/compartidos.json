@@ -1,0 +1,31 @@
+{
+  "formato": 1,
+  "tramos": [
+    {
+      "id": "drogas_granja_1~drogas_granja_2~1~5690",
+      "tramo": 1,
+      "a": "drogas_granja_1",
+      "b": "drogas_granja_2",
+      "a_desde": 5690,
+      "a_hasta": 2210,
+      "desfase": -160,
+      "error": 2.9,
+      "giro": 180,
+      "estado": "confirmado",
+      "nota": "revisado con el jugador (2026-11-10)"
+    },
+    {
+      "id": "drogas_granja_1~drogas_granja_2~2~3480",
+      "tramo": 2,
+      "a": "drogas_granja_1",
+      "b": "drogas_granja_2",
+      "a_desde": 3480,
+      "a_hasta": 10,
+      "desfase": 0,
+      "error": 2.5,
+      "giro": 173,
+      "estado": "confirmado",
+      "nota": "revisado con el jugador (2026-11-10)"
+    }
+  ]
+}

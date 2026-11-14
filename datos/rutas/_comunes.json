@@ -1,0 +1,75 @@
+{
+  "formato": 1,
+  "programa_minimo": "2.1.0",
+  "_ayuda": "Reglas comunes. inicio_comun: camino a cargar (tramo 0). regreso_comun: vuelta de todos los recorridos (tramo 2); una ruta puede limitarlas con regreso_comun_desde.",
+  "inicio_comun": [
+    {
+      "desde": 270,
+      "hasta": 120,
+      "desplazamiento_px": -2.5,
+      "nota": "Camino a cargar: esquina a la derecha, abrir el giro (poste de madera)"
+    }
+  ],
+  "regreso_comun": [
+    {
+      "desde": 2300,
+      "hasta": 2080,
+      "desplazamiento_px": -3.0,
+      "nota": "Textile City: árbol que sobresale a la derecha (vuelta)"
+    },
+    {
+      "desde": 1780,
+      "hasta": 1630,
+      "desplazamiento_px": 0,
+      "curva_larga_kmh": 65,
+      "nota": "Strawberry Avenue (vuelta): curva larga"
+    },
+    {
+      "desde": 1480,
+      "hasta": 1310,
+      "max_kmh": 50,
+      "desplazamiento_px": 0,
+      "nota": "Strawberry Avenue (vuelta): faroles y carteles; con +1,0 rozaba los carteles a la derecha (5 viajes)"
+    },
+    {
+      "desde": 1060,
+      "hasta": 930,
+      "desplazamiento_px": -1.5,
+      "esquina_kmh": 26,
+      "nota": "Maze Bank (vuelta): esquina muy cerrada"
+    },
+    {
+      "desde": 860,
+      "hasta": 740,
+      "max_kmh": 50,
+      "desplazamiento_px": -2.0,
+      "nota": "Maze Bank Arena: poste gigante, pasar por la izquierda"
+    },
+    {
+      "desde": 740,
+      "hasta": 500,
+      "max_kmh": 45,
+      "desplazamiento_px": -3.5,
+      "anticipacion": 0.7,
+      "nota": "Banning (vuelta): esquina y curva a la derecha con postes de madera, bien a la izquierda",
+      "giro_tardio_px": 3
+    },
+    {
+      "desde": 500,
+      "hasta": 230,
+      "desplazamiento_px": -2.5,
+      "anticipacion": 0.85,
+      "nota": "Banning (vuelta): resto de la calle, más a la izquierda"
+    },
+    {
+      "desde": 130,
+      "hasta": 0,
+      "desplazamiento_px": -1.5,
+      "giro_tardio_px": 1.5,
+      "nota": "Punto final (B): un poco a la izquierda, avanzar 4 s antes de doblar (árboles), sin marcha atrás",
+      "aprox_recto_seg": 4,
+      "sin_reversa": true,
+      "aprox_kmh": 25
+    }
+  ]
+}

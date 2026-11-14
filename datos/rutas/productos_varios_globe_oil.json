@@ -1,0 +1,29 @@
+{
+  "formato": 1,
+  "programa_minimo": "2.0.0",
+  "nombre": "Globe Oil",
+  "cargamento": "Productos varios",
+  "descripcion": "Productos varios: gasolinera Globe Oil (misma salida que Granja 2 hasta 1,84 km)",
+  "distancia_inicial": 3260,
+  "tolerancia": 60,
+  "regreso_comun_desde": 1470,
+  "reglas": {
+    "1": [
+      {"desde": 3270, "hasta": 3235, "max_kmh": 20, "desplazamiento_px": -2.0, "nota": "Puente de Elysian Island: entrar despacio, algo a la izquierda"},
+      {"desde": 3235, "hasta": 3185, "max_kmh": 40, "desplazamiento_px": -2.0, "nota": "Puente de Elysian Island: cruzar algo a la izquierda (farolas a la derecha)"},
+      {"desde": 3185, "hasta": 3120, "desplazamiento_px": -2.0, "esquina_kmh": 32, "giro_tardio_px": 3, "nota": "Esquina a la salida del puente: avanzar un poco más antes de girar"},
+      {"desde": 3120, "hasta": 3030, "desplazamiento_px": -2.5, "nota": "Inicio de Banning: el GPS está corrido a la derecha, ir más a la izquierda"},
+      {"desde": 3030, "hasta": 2760, "max_kmh": 40, "desplazamiento_px": -2.0, "nota": "Banning: curva cerrada a la izquierda", "esquina_kmh": 30},
+      {"desde": 2760, "hasta": 2540, "desplazamiento_px": -1.5, "sin_freno": true, "sin_bifurcacion": true, "nota": "Autopia Parkway: subida hasta Maze Bank Arena (sin frenar)"},
+      {"desde": 2540, "hasta": 2380, "desplazamiento_px": 0, "esquina_kmh": 28, "nota": "Maze Bank Arena: esquina (no bajar tanto)"},
+      {"desde": 2350, "hasta": 2270, "max_kmh": 40, "desplazamiento_px": -3.0, "nota": "Davis Avenue (Maze Bank): farolas en el centro, pasar por la izquierda"},
+      {"desde": 2270, "hasta": 2180, "max_kmh": 55, "desplazamiento_px": 1.5, "nota": "Davis/Strawberry: postes y carteles a la izquierda, un poco a la derecha"},
+      {"desde": 2180, "hasta": 2030, "max_kmh": 55, "desplazamiento_px": 0, "nota": "Strawberry Avenue: postes y carteles"},
+      {"desde": 64, "hasta": 0, "desplazamiento_px": 0, "entregar_control": true, "nota": "Globe Oil: tramo manual al llegar"}
+    ],
+    "2": [
+      {"desde": 1700, "hasta": 1600, "desplazamiento_px": 0, "esquina_kmh": 28, "nota": "Globe Oil (vuelta): esquina en bajada"},
+      {"desde": 1520, "hasta": 1420, "desplazamiento_px": -1.5, "nota": "Globe Oil (vuelta): curva, un poco a la izquierda"}
+    ]
+  }
+}

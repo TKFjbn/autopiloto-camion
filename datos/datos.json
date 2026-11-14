@@ -1,0 +1,11 @@
+{
+  "version": "1.2.3",
+  "programa_minimo": "2.5.1",
+  "formato": 1,
+  "descripcion": "Datos compartibles del autopiloto: reglas por recorrido (rutas/), grabaciones de recorridos (grabaciones/) y trazados (trazados/). Para pasárselos a otro jugador, envía esta carpeta entera.",
+  "unidad_minimapa": {
+    "w": 272,
+    "h": 180,
+    "nota": "3.0.0: los px de las reglas y trazados son de un minimapa de 272x180; el programa lleva cualquier minimapa a ese tamaño"
+  }
+}

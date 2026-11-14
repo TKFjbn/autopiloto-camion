@@ -1,0 +1,462 @@
+{
+  "version": 33,
+  "minimapa": {
+    "x": 28,
+    "y": 872,
+    "w": 272,
+    "h": 180
+  },
+  "jugador": {
+    "x": 135,
+    "y": 136
+  },
+  "color_ruta_hsv": [
+    [
+      0,
+      120,
+      120,
+      8,
+      255,
+      255
+    ],
+    [
+      172,
+      120,
+      120,
+      179,
+      255,
+      255
+    ]
+  ],
+  "vision": {
+    "radio_cerca": 30,
+    "radio_lejos": 60,
+    "radio_anticipacion": 125,
+    "radio_inicio": 13,
+    "paso_anillo": 3,
+    "radio_ajuste": 30,
+    "esquina_grados": 35,
+    "adelanto_giro_px": 16,
+    "calle_ancho_max_centrar": 12,
+    "calle_corr_max_px": 2.5,
+    "puntos_cuerda": 6,
+    "tolerancia_anillo": 2.5,
+    "angulo_max": 120,
+    "max_dist_inicio": 30
+  },
+  "velocimetro": {
+    "activo": true,
+    "region": {
+      "x": 1690,
+      "y": 965,
+      "w": 225,
+      "h": 55
+    },
+    "color_hsv": [
+      18,
+      80,
+      120,
+      38,
+      255,
+      255
+    ],
+    "confianza_min": 0.45
+  },
+  "calle": {
+    "correccion_max_px": 0.8,
+    "activo": true,
+    "saturacion_max": 45,
+    "claridad_sobre_fondo": 22,
+    "ventana_fondo": 31,
+    "ancho_max_calle_px": 16,
+    "peso_correccion": 0.5,
+    "fuera_umbral": 0.35,
+    "fuera_seg": 0.4,
+    "objetivo_fuera_de_calle": 20
+  },
+  "carril": {
+    "activo": true,
+    "trapecio": null,
+    "conf_min": 0.75,
+    "peso_grados": 12,
+    "tope_grados": 8,
+    "filtro_correccion": 0.92,
+    "sesgo": 0.0,
+    "aprendizaje_sesgo": 0.995,
+    "reduccion_gps": 0.6,
+    "giro_max": 35,
+    "kmh_min": 15,
+    "suavizado": 0.5,
+    "contraste_min": 22,
+    "asfalto_v_max": 150,
+    "ipm_pixeles_min": 18,
+    "ipm_busqueda_px": 22
+  },
+  "esquinas": {
+    "giro_esquina_grados": 75,
+    "objetivo_esquina_kmh": 20,
+    "objetivo_esquina_muy_cerrada_kmh": 14,
+    "giro_tardio_grados": 55,
+    "giro_tardio_px": 6,
+    "giro_tardio_ganancia": 1.4,
+    "giro_tardio_muy_cerrada_grados": 80,
+    "giro_tardio_muy_cerrada_px": 3,
+    "girar_si_bloqueado_seg": 0.8,
+    "abrir_antes_px": 0.0,
+    "abrir_desde_px": 45,
+    "maniobra_rumbo_grados": 110,
+    "maniobra_kmh_max": 15,
+    "maniobra_seg": 1.0,
+    "maniobra_reversa_seg": 3.5,
+    "maniobra_max_intentos": 6
+  },
+  "control": {
+    "backend": "teclado",
+    "mando_zona_muerta": 0.2,
+    "periodo_pwm": 0.12,
+    "modo_direccion": "persecucion",
+    "persecucion_px_por_velocidad": [
+      [
+        0,
+        20
+      ],
+      [
+        30,
+        24
+      ],
+      [
+        60,
+        28
+      ],
+      [
+        90,
+        34
+      ]
+    ],
+    "kp_persecucion": 0.011,
+    "persecucion_desvio_grados_px": 1.0,
+    "persecucion_desvio_tope": 12,
+    "persecucion_desvio_zona_muerta_px": 1.0,
+    "integral_desvio_grados_px_seg": 0.4,
+    "integral_desvio_tope_grados": 6,
+    "persecucion_acortar_en_curva": [
+      [
+        0,
+        1.0
+      ],
+      [
+        20,
+        0.85
+      ],
+      [
+        40,
+        0.7
+      ]
+    ],
+    "kp": 0.02,
+    "kd": 0.0015,
+    "peso_desvio": 3.5,
+    "peso_desvio_por_velocidad": [
+      [
+        0,
+        1.0
+      ],
+      [
+        40,
+        1.15
+      ],
+      [
+        80,
+        1.4
+      ]
+    ],
+    "limite_desvio_grados": 25,
+    "limite_desvio_fuera_calle": 40,
+    "desplazamiento_carril_px": 0.0,
+    "desplazamiento_quitar_curva_grados": 12,
+    "zona_muerta_grados": 0.5,
+    "cambio_max_por_seg": 2.5,
+    "suavizado": 0.4,
+    "ganancia_por_velocidad": [
+      [
+        0,
+        1.7
+      ],
+      [
+        15,
+        1.3
+      ],
+      [
+        35,
+        1.0
+      ],
+      [
+        60,
+        0.8
+      ],
+      [
+        90,
+        0.65
+      ]
+    ],
+    "curva_rapida_kmh": 45,
+    "curva_rapida_ganancia": [
+      [
+        10,
+        1.0
+      ],
+      [
+        25,
+        1.6
+      ]
+    ],
+    "curva_rapida_peso_giro": 0.6,
+    "invertir_direccion": false
+  },
+  "velocidad": {
+    "objetivo_recta": 80,
+    "objetivo_recta_larga": 100,
+    "recta_larga_px": 90,
+    "recta_larga_giro_max": 8,
+    "recta_larga_seg": 2.0,
+    "objetivo_curva": 60,
+    "objetivo_curva_cerrada": 40,
+    "objetivo_modo_lento": 15,
+    "modo_lento_max_seg": 90,
+    "objetivo_cerca_destino": 30,
+    "objetivo_por_giro_total": [
+      [
+        20,
+        80
+      ],
+      [
+        35,
+        70
+      ],
+      [
+        55,
+        58
+      ],
+      [
+        80,
+        46
+      ]
+    ],
+    "giro_total_extra_por_px": 0.25,
+    "bajada_reduccion_kmh": 10,
+    "bajada_seg": 4.0,
+    "objetivo_bifurcacion": 55,
+    "objetivo_bifurcacion_autopista": 70,
+    "regla_antes_m": 80,
+    "regla_antes_kmh_por_m": 0.5,
+    "objetivo_desviado": 0,
+    "desviado_px": 5.0,
+    "objetivo_ignorar_fotogramas": 2,
+    "curva_suave_grados": 20,
+    "rumbo_que_cuenta_como_curva": 35,
+    "desvio_para_ir_lento_px": 14,
+    "desvio_para_ir_lento_seg": 1.5,
+    "objetivo_fuera_de_ruta": 30,
+    "curva_ref_grados": 40,
+    "curva_cerrada_grados": 75,
+    "kmh_extra_por_px": 0.45,
+    "objetivo_por_tasa_giro": [
+      [
+        10,
+        80
+      ],
+      [
+        18,
+        74
+      ],
+      [
+        28,
+        61
+      ],
+      [
+        40,
+        49
+      ],
+      [
+        60,
+        35
+      ]
+    ],
+    "memoria_curva_seg": 1.5,
+    "subida_objetivo_kmh_seg": 8,
+    "retraso_hud_seg": 0.35,
+    "acelerador_crucero_por_velocidad": [
+      [
+        15,
+        0.22
+      ],
+      [
+        45,
+        0.3
+      ],
+      [
+        80,
+        0.48
+      ],
+      [
+        100,
+        0.62
+      ]
+    ],
+    "kp": 0.025,
+    "kp_acelerador": 0.03,
+    "ki_acelerador": 0.012,
+    "integral_acelerador_max": 0.4,
+    "bajada_acelerador_por_seg": 1.5,
+    "tras_freno_seg": 0.8,
+    "acelerador_max_en_marcha": 1.0,
+    "subida_acelerador_por_seg": 1.0,
+    "soltar_antes_kmh": 4,
+    "acelerador_arranque": 1.0,
+    "segundos_parado_para_arranque": 1.2,
+    "acelerador_max_por_objetivo": [
+      [
+        10,
+        0.4
+      ],
+      [
+        20,
+        0.55
+      ],
+      [
+        35,
+        0.85
+      ],
+      [
+        50,
+        1.0
+      ]
+    ],
+    "subida_refuerzo_por_seg": 0.35,
+    "subida_refuerzo_max": 0.5,
+    "margen_sin_frenar_lento_kmh": 9,
+    "soltar_progresivo_kmh": 8,
+    "amortiguacion_seg": 0.0,
+    "sin_freno_bajo_kmh": 20,
+    "sin_freno_bajo_margen_kmh": 10,
+    "margen_sin_frenar_kmh": 12,
+    "margen_sin_frenar_curva_kmh": 5,
+    "margen_sin_frenar_curva_suave_kmh": 8,
+    "frenar_exceso_lectura_kmh": 3,
+    "freno_max": 0.35,
+    "freno_pulso_seg": 0.3,
+    "freno_espera_seg": 0.8,
+    "sin_velocimetro_recta": 0.6,
+    "sin_velocimetro_curva": 0.45
+  },
+  "etapas": {
+    "llegada_seg": 1.5,
+    "ruta_estable_seg": 1.5,
+    "tramos": [
+      "Ir a cargar",
+      "Ir al punto de entrega (A)",
+      "Volver a la zona de trabajo (B)"
+    ]
+  },
+  "atasco": {
+    "activo": true,
+    "segundos": 3.0,
+    "kmh_max": 5,
+    "choque_caida_kmh": 25,
+    "choque_ventana_seg": 1.0,
+    "umbral_movimiento": 1.0,
+    "reversa_seg": 4.0,
+    "cancelar_reversa_kmh": 20,
+    "reversa_kmh_max": 6,
+    "reversa_fuerza": 0.55,
+    "reversa_extra_si_repite": 2.0,
+    "recto_tras_choque_m": 5.0,
+    "recto_tras_choque_extra_m": 3.0,
+    "recto_tras_choque_volante": 0.15
+  },
+  "teclas": {
+    "activar": "INSERT",
+    "modo_lento": "PAGEUP",
+    "saltar_etapa": "PAGEDOWN",
+    "salir": "END",
+    "capturar": "F11",
+    "carril": "DELETE",
+    "tomar_control": [
+      "S",
+      "SPACE"
+    ]
+  },
+  "trazado": {
+    "cambio_px_seg": 6.0,
+    "kmh_margen": 5,
+    "kmh_minimo": 15
+  },
+  "grabacion": {
+    "volante_max": 0.7,
+    "volante_por_seg": 2.5,
+    "volante_vuelta_por_seg": 5.0,
+    "acelerador_base": 0.45,
+    "acelerador_por_kmh": 0.035,
+    "acelerador_mantener": 0.3,
+    "mantener_kmh": 4,
+    "freno": 0.6,
+    "desvio_kmh_max": 15,
+    "desvio_seg": 3.0,
+    "quieto_seg": 3.0
+  },
+  "etapas_pantalla": {
+    "activo": true,
+    "cada_seg": 0.4,
+    "marcador_frenar_px": 70,
+    "aproximar_marcador": true,
+    "aproximar_px": 35,
+    "llegar_px": 4,
+    "objetivo_aproximar_kmh": 20,
+    "parado_es_llegada_seg": 2.5,
+    "llegada_m": 8,
+    "retroceso_tras_cargar_seg": 1.8,
+    "retroceso_tras_cargar_fuerza": 0.5,
+    "retroceso_tras_cargar_volante": 0.5,
+    "accion_inicio_max_m": 600,
+    "barra_max_kmh": 12,
+    "intentos_llegar": 3,
+    "empuje_seg": 2.5,
+    "empuje_acelerador": 0.9,
+    "confirmar_etapas": true
+  },
+  "hud_texto": {
+    "activo": true,
+    "cada_seg": 1.0,
+    "registrar_incidentes": true,
+    "destino_lejos_m": 150,
+    "notificaciones": true,
+    "condicion_aviso": 2,
+    "region_condicion": [
+      6.55,
+      0.8,
+      7.2,
+      1.14
+    ],
+    "region_notificacion": [
+      -0.1,
+      -1.1,
+      1.15,
+      -0.02
+    ],
+    "region_distancia": [
+      -0.05,
+      0.62,
+      0.65,
+      1.12
+    ],
+    "region_zona": [
+      1.02,
+      0.55,
+      3.4,
+      1.22
+    ]
+  },
+  "ventana_juego": "Grand Theft Auto",
+  "usuario": "",
+  "fps": 30
+}

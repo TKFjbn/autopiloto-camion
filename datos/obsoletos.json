@@ -1,0 +1,45 @@
+{
+  "_ayuda": "Archivos de datos que ya no sirven. Al abrir el programa se mueven a mi_equipo/respaldos/datos_obsoletos/ (no se borran), solo si su contenido es exactamente el indicado (sha1).",
+  "archivos": [
+    {
+      "ruta": "grabaciones/drogas_granja_1_tramo_1_2.json",
+      "sha1": "78832246acbea6282c3951c869fefd71edd2b896",
+      "motivo": "repetida: ahora es grabaciones/drogas_granja_1_tramo_1.json"
+    },
+    {
+      "ruta": "grabaciones/drogas_granja_1_tramo_2_2.json",
+      "sha1": "34b82066676e68d2c2a9d836579eed005843b978",
+      "motivo": "repetida: ahora es grabaciones/drogas_granja_1_salida.json (después de DESCARGADO)"
+    },
+    {
+      "ruta": "grabaciones/drogas_granja_1_tramo_2_3.json",
+      "sha1": "3c880e542ea7d15c0288e372648bc06f88c4b300",
+      "motivo": "repetida: ahora es grabaciones/drogas_granja_1_tramo_2.json"
+    },
+    {
+      "ruta": "trazados/drogas_granja_1_tramo_1_2.json",
+      "sha1": "6431bb71293f3dbf1af4dce757ac0077768ebea8",
+      "motivo": "repetido: ahora es trazados/drogas_granja_1_tramo_1.json"
+    },
+    {
+      "ruta": "trazados/drogas_granja_2_tramo_2.json",
+      "sha1": "6c419856fc5f31091da166e665b4ca1d7d14ef8e",
+      "motivo": "reemplazado por la vuelta común de Strawberry (trazados/drogas_granja_1_tramo_2.json)"
+    },
+    {
+      "ruta": "trazados/drogas_granja_1_tramo_2_2.json",
+      "sha1": "896e08e6c3c687ed34996c7d8e95616159320365",
+      "motivo": "repetido: ahora es trazados/drogas_granja_1_tramo_1.json (Davis)"
+    },
+    {
+      "ruta": "grabaciones/drogas_granja_1_tramo_2_2.json",
+      "sha1": "9e2d15a543957b95bc7c5197d9e56251fc420c50",
+      "motivo": "repetida: ahora es grabaciones/drogas_granja_1_salida.json (después de DESCARGADO)"
+    },
+    {
+      "ruta": "grabaciones/drogas_granja_1_tramo_2.json",
+      "sha1": "3c880e542ea7d15c0288e372648bc06f88c4b300",
+      "motivo": "salida anterior (había que activarla con INSERT); la nueva es grabaciones/drogas_granja_1_salida.json"
+    }
+  ]
+}

@@ -1,0 +1,48 @@
+{
+  "formato": 1,
+  "programa_minimo": "2.5.0",
+  "nombre": "Granja 2",
+  "cargamento": "Drogas",
+  "descripcion": "Droga: Desierto de Grand Señora (autopista y camino de tierra)",
+  "distancia_inicial": 5530,
+  "tolerancia": 80,
+  "reglas": {
+    "1": [
+      {
+        "desde": 2100,
+        "hasta": 2000,
+        "desplazamiento_px": 1.5,
+        "nota": "Autopista: un poco a la derecha (solo Granja 2: justo donde se separan los caminos)",
+        "solo_esta_ruta": true
+      },
+      {
+        "desde": 1850,
+        "hasta": 1400,
+        "desplazamiento_px": -4.0,
+        "nota": "Vinewood Hills: la ruta se sale del camino, barreras y cartel a la derecha"
+      },
+      {
+        "desde": 130,
+        "hasta": 0,
+        "desplazamiento_px": 0,
+        "entregar_control": true,
+        "nota": "Granja 2: entrada sin caminos, tramo manual"
+      }
+    ],
+    "2": [
+      {
+        "desde": 3850,
+        "hasta": 3600,
+        "desplazamiento_px": -1.25,
+        "nota": "Autopista de Vinewood Hills (vuelta): cambio de carril, a la izquierda (con -1,0 chocó a la derecha en 3,72 km; con -1,75 se apegaba a la izquierda) y sin frenar por la bifurcación",
+        "sin_bifurcacion": true
+      },
+      {
+        "desde": 2850,
+        "hasta": 2750,
+        "sin_bifurcacion": true,
+        "nota": "Autopista de Los Santos (vuelta): salida a la derecha a 2,82 km; no frenar por la bifurcación"
+      }
+    ]
+  }
+}
