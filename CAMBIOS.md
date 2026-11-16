@@ -7,6 +7,103 @@ Versionado semántico: **MAYOR.MENOR.PARCHE**.
 
 Los **datos** (`datos/`) llevan su propia versión en `datos/datos.json`. Cada entrega dice si es de **programa** (hay que actualizar `programa/`) o **solo datos** (basta con reemplazar `datos/`).
 
+## Programa 3.5.0 · Datos 1.2.7 (2026-11-16)
+Tipo: **programa, y cambia la conducción**: modo lento nuevo, reglas generales, modo y funciones experimentales por regla, y avance en esquinas. Los datos no cambian: las reglas actuales siguen igual.
+- **Modo lento** (tecla RE PÁG o botón en Mandos): ahora es el modo rápido al revés, con el bloque `modo_lento` en la configuración.
+  - Rectas 60, recta larga 70, bifurcaciones 45 (autopista 55).
+  - Curvas, curvas cerradas, curvas por tasa de giro y curvas largas ×0,85; esquinas sin regla −3 km/h (mínimo 6).
+  - No se apaga solo. Se quitan `objetivo_modo_lento` (15 km/h) y `modo_lento_max_seg` (90 s).
+- **Reglas nuevas** (rutas.py):
+  - `"modo": "lento" | "rapido" | "normal"`: en la zona de la regla conduce con ese modo; al salir vuelve al elegido con las teclas.
+  - `"solo_lento": true`, como `solo_rapido`.
+  - `"avance_esquina_px"`: px que avanza de más (+) o de menos (−) antes de girar, respecto del normal (6 px; 3 px en esquinas de calle de 80–110°). `giro_tardio_px` (valor fijo) sigue mandando si está.
+  - `"exp": {...}`: prende o apaga en su zona velocidad sin vaivén, velocidad suave en curvas, lado suave en autopista y usar grabaciones.
+  - `"general": true` (sin desde/hasta): vale en todo el tramo de ese recorrido (en el camino a cargar y la vuelta común, también desde `_comunes.json`). La regla de un lugar se pone encima y manda en lo que pida; lo demás de la general sigue valiendo. No se copia a tramos compartidos.
+- **Mapa de ruta:**
+  - tipo «Esquina: velocidad y avanzar antes de girar» con barra (girar antes ◄ ► avanzar más); en Avanzado queda «Giro en esquinas» fijo y el avance como número;
+  - casilla «Regla general»: desde y hasta se apagan; «Entregar el control» no puede ser general;
+  - tipos «Modo de velocidad aquí» y «Funciones experimentales aquí» (como siempre / prendida / apagada);
+  - cartel con las reglas generales del tramo;
+  - en la lista, verde para las de observaciones y naranja para las vacías, y la etiqueta «[modo …]»;
+  - en el mapa, las de observaciones y la elegida se dibujan encima de la ruta, las calles y los puntos de interés.
+- **Observaciones:** «+ Regla aquí» suma la barra «Esquina, avanzar antes de girar».
+- **Grabaciones:**
+  - mismo nombre que una antigua: pregunta si reemplazar (Sí = reemplaza, con copia en `mi_equipo/respaldos/grabaciones`; No = guarda las dos; Cancelar = cambiar el nombre);
+  - tecla **F5** para empezar y terminar de grabar (no F7: en el juego oculta el HUD), configurable.
+- **Ajustes:**
+  - nueva sección «Conducción» con «Usar grabaciones de teclas» (sale de Experimental; mismo valor de siempre en la configuración);
+  - Apariencia → Volante: círculo (nuevo, por defecto) o barra horizontal.
+- **Tramos compartidos:** pasan de Experimental a la pestaña Mapa de ruta, plegables abajo («Ver tramos compartidos entre recorridos»).
+
+## Programa 3.4.2 · Datos 1.2.7 (2026-11-14)
+Tipo: **programa** (solo la ventana de observaciones y el Mapa de ruta). La conducción no cambia; los datos tampoco.
+- **Observaciones:**
+  - «¿Por qué lo marcaste?» / «Tu observación:» pasa a llamarse **«Indicaciones:»**; en el CSV se guarda como `indicaciones: …`.
+  - El menú «Qué pasó:» sigue igual.
+- **«+ Regla aquí»** en cada punto de las observaciones:
+  - desde / hasta (por defecto 60 m antes y 60 m después del punto);
+  - qué hace: bajar velocidad a X km/h, esquina a X km/h, no frenar, entregar el control, y una barra para ir más a la izquierda o la derecha;
+  - nota = las indicaciones.
+  - Se escribe al guardar las observaciones, con copia previa en `mi_equipo/respaldos/rutas/`: tramo 0 en las comunes del camino a cargar, ida y vuelta en el archivo del recorrido.
+  - Si el programa está andando, la toma al momento.
+- **Mapa de ruta:**
+  - las reglas creadas en observaciones se ven en **verde** (`"origen": "observacion"`) hasta que se cambien y se guarden en el mapa; guardar sin cambios no les quita el verde;
+  - las reglas **vacías** (sin velocidad, lado, esquina, no frenar, entregar control ni otros valores) se ven en **naranja**;
+  - «Bajar velocidad» pasa de naranja a **amarillo**;
+  - leyenda de colores abajo del mapa;
+  - en la lista, las reglas marcadas como «[de observaciones]» o «[vacía]».
+
+## Programa 3.4.1 · Datos 1.2.7 (2026-11-14)
+Tipo: **programa** (solo la ventana) y **datos** (reglas). La conducción no cambia; cambian las reglas de abajo.
+- **Consola en ventana aparte:** botón «⧉ Consola» en la barra de arriba (se ve aunque la consola quede fuera de la pantalla). Separada, la ventana principal ya no la muestra y las pestañas ganan ese espacio; lleva Copiar todo, Limpiar y «Volver abajo» (o cerrar la ventana). Se recuerdan si estaba separada, su tamaño y su posición.
+- **Barra de desplazamiento** a la derecha en Calibración, Ajustes, Experimental y el panel derecho del Mapa de ruta (lista de reglas y «Editar regla»): aparece solo si el contenido no cabe; la rueda del mouse la mueve (salvo encima de listas y textos con barra propia).
+- **Reglas (viaje 14/11 19:30, Granja 2, con tus observaciones):**
+  - Ida 1,98–1,40 km (antes 1,85): Vinewood Hills, −4,0 → −4,5 px. Se pegó a la barrera derecha en 1,78 km.
+  - Ida 1,40–1,10 km, nueva: −2,5 px. Se pegó a la barrera derecha en 1,26 km.
+  - Ida 500–130 m, nueva: máximo 50 km/h antes de la entrada a la granja. Llegaba a 83 km/h a la esquina.
+  - Vuelta 4,05–3,85 km, nueva: +1,5 px antes del cambio de carril. Se pegó a la barrera izquierda en 3,91 km.
+  - Vuelta común: Strawberry Avenue hasta 1,20 km (antes 1,31). Al terminar aceleraba a 63 y se iba a la izquierda.
+  - Vuelta común: Banning «resto de la calle» queda en 500–330 m. Regla nueva 330–130 m: −1,0 px y máximo 35 km/h. Con −2,5 px se salía por la izquierda en 237 m.
+
+## Programa 3.4.0 · Datos 1.2.6 (2026-11-14)
+Tipo: **programa** (ventana principal y lanzador). La conducción no cambia. Los datos no cambian.
+- **Autopiloto.exe (opcional):** Ajustes → Versión y carpetas → «Crear Autopiloto.exe…», o `Crear Autopiloto.exe.bat` en la carpeta del autopiloto. Arma con el compilador de C# de Windows (.NET Framework 4, viene con Windows) un lanzador de pocos KB con ícono: busca Python y abre el programa sin ventana negra, como `Autopiloto.bat`.
+  - Pregunta si abrir siempre como administrador (reemplaza a «Autopiloto (administrador).bat») y si crear un acceso directo en el escritorio.
+  - Se hace una vez; las actualizaciones no lo cambian. Los .bat se quedan.
+  - El código está en `programa/lanzador/` (Autopiloto.cs). No toca el juego ni su carpeta.
+- **Vistas de Conducir autoescalables:** casillas **Minimapa**, **Cámara / carril** y **Mapa de ruta** (se recuerdan). Las marcadas se reparten el espacio: 1 = todo; 2 o 3 = lado a lado con el ancho según la forma de cada imagen (la cámara ocupa menos); 4 o más = 3 arriba y una ancha abajo (listo para YOLO). Cada una se puede separar en otra ventana; al separarla, las demás ocupan su lugar. Ya no hay tope de 260 px para la cámara.
+- **Mapa de ruta en Conducir:** ruta del tramo actual (ya recorrido en gris, lo que falta en azul), punto de llegada y el camión. Rueda = zoom. Con el camión andando lo sigue con zoom automático según la velocidad (~6 s de camino a cada lado); el zoom a mano se respeta 8 s. Si se arma o cambia el mapa al detener un viaje, se recarga solo. **Doble clic** = pestaña «Mapa de ruta» en ese recorrido y tramo.
+- **Pestaña «Mapa de ruta»:** el editor de la 3.3.0, ahora dentro de la ventana principal (se arma la primera vez que se abre y no dibuja mientras está escondida). Esc y Ctrl+Z funcionan con el mouse sobre el mapa.
+- **Fuera de Experimental:**
+  - **Mapa de la ruta:** se arma siempre al detener el programa si el viaje tiene rumbo; ya no tiene interruptor.
+  - **Modo rápido** (y el modo lento): botones en Conducir → Mandos; teclas en Ajustes → Cambiar teclas → «Modos de velocidad». La barra de teclas de Conducir muestra también F10.
+
+## Programa 3.3.0 · Datos 1.2.6 (2026-11-14)
+Tipo: **programa** (solo la ventana «Mapa de la ruta» y cómo se arman los mapas). **La conducción no cambia.** Datos: se agregan `datos/pois.json` (puntos de interés) y los mapas de Granja 1, Granja 2 y el camino a cargar armados con tus viajes del 14/11.
+- **Crear reglas más fácil:**
+  - «+ Nueva regla» y arrastrar por la ruta desde donde empieza hasta donde termina (un clic sin arrastrar = 80 m alrededor);
+  - la regla elegida tiene extremos que se arrastran para alargarla o acortarla;
+  - bajo el mouse: km, calle y zona;
+  - tipos simples: Bajar velocidad, Ir más a la izquierda/derecha (con barra y vista previa en el mapa), Esquina, No frenar, Entregar el control, y «Avanzado» con todos los valores;
+  - aviso cuando dos reglas se pisan y piden cosas distintas;
+  - «cerca de: …» con el punto de interés más próximo;
+  - botón **Deshacer**.
+- **Abrir viaje…:** el viaje encima del mapa, coloreado según la velocidad, con marcas donde tomaste el control, chocó, se atascó o salió de la calle (las que caen en el mismo lugar se juntan en una). Clic en una marca = regla nueva ahí.
+- **Buscador:** calle, zona, punto de interés o km.
+- **Puntos de interés:** 28 iniciales sacados de las notas de tus reglas (puente, Davis, Banning, separador de Strawberry, entrada a la granja…). Clic derecho para agregar, renombrar, cambiar ícono o borrar. En los tramos compartidos se ven en los dos recorridos.
+- **Calles y zonas** sacadas de los viajes como etiquetas en el mapa; los textos que no caben se esconden en vez de taparse.
+- **Camino a cargar común:** un solo mapa para todos los recorridos, armado juntando hasta 8 viajes alineados en el punto de carga. Cuadro verde = **zona de aparición** con los puntos donde apareció el camión; el camino se dibuja desde donde llega a la calle común (hoy ~239 m). Crear una regla dentro de esa zona pide confirmación. Las reglas del camino a cargar siguen en `_comunes.json`.
+
+## Programa 3.2.8 · Datos 1.2.5 (2026-11-14)
+Tipo: **programa** (cambia la lógica del control de velocidad y de la lectura de la distancia). Los datos no cambian.
+- **Velocidad sin sube y baja, ahora de verdad y a toda velocidad** (experimental «Velocidad sin sube y baja», encendida). La 3.2.4 no lo arregló en el juego: en Banning (límite 40) seguía yendo de 24 a 47. Medido en tus viajes: el camión cargado pierde ~15 km/h por segundo con el acelerador bajo (0,07–0,18) y gana solo ~8 con el máximo, y responde ~1 s tarde; al pasarse 7 km/h el acelerador bajaba a 0,07 y en 1,5 s caía a 24. La simulación de la 3.2.4 no tenía esa diferencia. Ahora (todas las velocidades):
+  - el acelerador se queda cerca del que mantiene la velocidad: por pasarse hasta 8 km/h baja como mucho un 10 %, y estando cerca del objetivo no sube a tope;
+  - corrige hacia abajo con un tercio de la fuerza que hacia arriba y aprende el acelerador de mantener más despacio;
+  - fuera de esquinas, curvas cerradas y llegadas, frena solo si el velocímetro ya marca el exceso, y con un toque suave.
+  En una simulación con la respuesta medida de tu camión: límite 25 → 23–29 km/h, 40 → 36–45, 60 → 58–64, 80 → 77–84 (antes 0–39, 27–43, 7–69 y 32–90). Al acelerar de 20 a 80 tarda un poco más (5,0 s en vez de 4,2) pero ya no se pasa a 91.
+- **Lectura del 6 y el 0:** sobre fondo gris claro el 6 pierde parte del trazo y casi empata con el 0 (le ganaba por 0,01). Ahora un número que gana por poco a otro parecido (0, 3, 5, 6, 8, 9) queda **dudoso** y se decide con las lecturas del último segundo y medio en que se leyó sin duda; solo para dígitos de centenas de metros o más, y solo si el resultado cuadra con la lectura anterior. Probado con tus videos: en el puente «5,05» y «5,04» pasan a 5,65 y 5,64; en todo el viaje de Granja 1, 3 lecturas corregidas y ninguna empeorada.
+- **Ajustes → «Olvidar números aprendidos»:** el programa aprende cómo se ven los números en tu PC; si aprendió alguno mal (leer 5,09 durante 16 s seguidos apunta a eso), este botón lo borra y vuelve a aprender solo.
+
 ## Programa 3.2.7 · Datos 1.2.5 (2026-11-14)
 Tipo: **programa** (arreglo de la corrección de distancia de la 3.2.3).
 - **Corrección de distancia equivocada en Strawberry:** el lector del HUD se quedó pegado en 3,66 km unos 5 s a 90 km/h; la 3.2.3 contaba lo recorrido desde la última vuelta (no desde que apareció ese valor), así que cuando volvió a leer bien (3,34 km) lo tomó por mal leído y usó 3,63 km. Con esa distancia no frenó antes del separador de vías (llegó a 89 con límite 65). Ahora:

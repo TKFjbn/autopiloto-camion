@@ -198,7 +198,7 @@ class Autopiloto:
         self.t_estado = time.time()
         self.tramo = tramo_inicial
         self.modo_lento = False
-        self.modo_rapido = False                          # 2.6.0 (experimental)
+        self.modo_rapido = False                          # 2.6.0; fijo desde la 3.4.0
         self.direccion = 0.0
         self.err_prev = None
         self.deriv = 0.0
@@ -215,11 +215,12 @@ class Autopiloto:
         t = cfg["teclas"]
         t.setdefault("hito", "F9")
         t.setdefault("modo_rapido", "F10")
-        for campo in ("activar", "modo_lento", "saltar_etapa", "salir", "carril", "hito", "modo_rapido"):
+        t.setdefault("grabar", "F5")                      # 3.5.0 (F7 oculta el HUD)
+        for campo in ("activar", "modo_lento", "saltar_etapa", "salir", "carril", "hito", "modo_rapido", "grabar"):
             t[campo] = entrada.validar_tecla(t.get(campo, "DELETE"), campo)
         t["tomar_control"] = [entrada.validar_tecla(k, "tomar_control") for k in t["tomar_control"]]
         self.hotkeys = entrada.Hotkeys([t["activar"], t["modo_lento"], t["saltar_etapa"], t["salir"], t["carril"],
-                                        t["hito"], t["modo_rapido"]])
+                                        t["hito"], t["modo_rapido"], t["grabar"]])
 
     # ------------------------------------------------------------ incidentes y lugar
     def _csv_lugar(self):
@@ -390,7 +391,12 @@ class Autopiloto:
             self.ultimo_motivo_trazado = motivo[0] if motivo else "sin datos"
             return False
         t["nombre"] = g.get("nombre", t["nombre"])
+        if g.get("_reemplazar"):                       # 3.5.0: reemplaza al antiguo del mismo nombre
+            t["_reemplazar"] = True
         ruta = self.grab_mod.guardar_trazado(t)
+        if g.get("_reemplazar"):
+            base = os.path.basename(ruta)
+            self.trazados = [x for x in self.trazados if x.get("_archivo") != base]
         t["_archivo"] = os.path.basename(ruta)
         self.trazados.append(t)
         print(f"[OK] Trazado guardado: {ruta} ({_km(t['desde'])} a {_km(t['hasta'])}, {len(t['puntos'])} puntos)")
@@ -401,10 +407,16 @@ class Autopiloto:
         """Guarda la grabación en disco y la deja disponible desde ya."""
         ruta = self.grab_mod.guardar(g)
         g["_archivo"] = os.path.basename(ruta)
+        if g.get("_reemplazar"):                       # 3.5.0: quitar la antigua de la memoria
+            self.grabs = [x for x in self.grabs if x.get("_archivo") != g["_archivo"]]
         if self.experimental("usar_grabaciones"):
             self.grabs.append(g)
         print(f"[OK] Grabación guardada: {ruta}")
         self.incidente(f"grabación guardada: {g.get('nombre', '?')}")
+
+    def _grabs_ahora(self):
+        """3.5.0: una regla puede apagar las grabaciones en su zona (exp usar_grabaciones = false)."""
+        return self.grabs if self.experimental("usar_grabaciones") else []
 
     def iniciar_reproduccion(self, g):
         e = self.hud.estado if self.hud else {}
@@ -809,10 +821,6 @@ class Autopiloto:
     # ------------------------------------------------------------ teclas
     def procesar_teclas(self):
         t = self.cfg["teclas"]
-        mx = self.cfg["velocidad"].get("modo_lento_max_seg", 0)
-        if self.modo_lento and mx and time.time() - getattr(self, "t_modo_lento", time.time()) > mx:
-            self.modo_lento = False
-            print(f"\n[i] Modo lento desactivado automáticamente ({mx:.0f} s)")
         if self.parar.is_set():
             return False
         pulsadas = list(self.hotkeys.leer())
@@ -880,12 +888,14 @@ class Autopiloto:
                 self.t_modo_lento = time.time()
                 if self.modo_lento:
                     self.modo_rapido = False
-                print(f"\n[i] Modo lento {'ACTIVADO' if self.modo_lento else 'desactivado'}")
+                print(f"\n[i] Modo lento {'ACTIVADO' if self.modo_lento else 'desactivado'}: "
+                      + ("menos velocidad en todo (rectas, curvas y esquinas); las reglas mandan igual."
+                         if self.modo_lento else "velocidad normal."))
             elif k == t["modo_rapido"]:
                 self.modo_rapido = not self.modo_rapido
                 if self.modo_rapido:
                     self.modo_lento = False
-                print(f"\n[i] Modo rápido (experimental) {'ACTIVADO' if self.modo_rapido else 'desactivado'}: "
+                print(f"\n[i] Modo rápido {'ACTIVADO' if self.modo_rapido else 'desactivado'}: "
                       + ("más velocidad y curvas más fluidas; las reglas mandan igual." if self.modo_rapido else
                          "velocidad normal."))
             elif k == t["carril"]:
@@ -893,6 +903,8 @@ class Autopiloto:
                 print(f"\n[i] Ayuda de carril {'ACTIVADA' if self.usar_carril else 'desactivada'}")
             elif k == t["hito"]:
                 self.marcar_hito()
+            elif k == t.get("grabar"):                     # 3.5.0: empezar / terminar de grabar
+                self.alternar_grabacion()
             elif k == t["saltar_etapa"]:
                 self.tramo = min(self.tramo + 1, 2)
                 print(f"\n[i] Saltando a tramo {self.tramo}: {self.texto_etapa()}")
@@ -930,13 +942,17 @@ class Autopiloto:
 
         def px_tardio(grados):
             # v31: una regla puede decir cuánto avanzar antes de girar en esa esquina (menos = girar antes)
-            if getattr(self, "regla", None) is not None and "giro_tardio_px" in self.regla:
-                return float(self.regla["giro_tardio_px"]) * escala
+            rg = getattr(self, "regla", None) or {}
+            if "giro_tardio_px" in rg:
+                return float(rg["giro_tardio_px"]) * escala
             # esquinas muy cerradas (calles angostas): avanzar más antes de girar
             # (solo esquinas de calle, ~80-110°; las horquillas más cerradas se toman como siempre)
             if es.get("giro_tardio_muy_cerrada_grados", 80) <= abs(grados or 0) < 110:
-                return es.get("giro_tardio_muy_cerrada_px", 3) * escala
-            return es.get("giro_tardio_px", 7) * escala
+                base = es.get("giro_tardio_muy_cerrada_px", 3)
+            else:
+                base = es.get("giro_tardio_px", 7)
+            # 3.5.0: «avanzar antes de girar» relativo al normal (+ = avanza más, gira después)
+            return max(0.0, base - float(rg.get("avance_esquina_px", 0) or 0)) * escala
         # 3.2.1: la línea del GPS nace en la PUNTA de la flecha, no en su centro: con la esquina ya bajo la
         # flecha, su distancia se mide desde la punta (si no, en esquinas de 90° nunca baja del margen y sigue de largo)
         frente = es.get("frente_flecha_px", 7.0) * escala
@@ -1180,35 +1196,54 @@ class Autopiloto:
         calle = ((self.hud.estado.get("calle") if self.hud else None) or "").lower()
         return any(k in calle for k in ("autopista", "freeway", "fwy"))
 
+    def modo_vel(self):
+        """3.5.0: modo de velocidad que vale ahora: el que pide la regla («modo») o el elegido con las teclas.
+        Devuelve "rapido", "lento" o None (normal)."""
+        m = (getattr(self, "regla", None) or {}).get("modo")
+        if m in ("rapido", "lento"):
+            return m
+        if m == "normal":
+            return None
+        if getattr(self, "modo_rapido", False):
+            return "rapido"
+        if getattr(self, "modo_lento", False):
+            return "lento"
+        return None
+
     def vcfg(self):
-        """2.6.0: valores de velocidad; con el modo rápido, los del bloque modo_rapido encima de los normales."""
+        """2.6.0: valores de velocidad; con el modo rápido (o lento, 3.5.0), los de su bloque encima de los
+        normales."""
         v = self.cfg["velocidad"]
-        if not getattr(self, "modo_rapido", False):
+        modo = self.modo_vel()
+        if modo is None:
             return v
-        clave = id(self.cfg)
-        cache = getattr(self, "_vcfg_rapido", None)
-        if cache is None or cache[0] != clave:
-            mr = self.cfg.get("modo_rapido", {})
-            f = float(mr.get("factor_curvas", 1.15))
+        clave = (id(self.cfg), modo)
+        cache = getattr(self, "_vcfg_modo", {})
+        self._vcfg_modo = cache
+        if clave not in cache:
+            mr = self.cfg.get("modo_" + modo, {})
+            f = float(mr.get("factor_curvas", 1.15 if modo == "rapido" else 0.85))
             r = dict(v)
             r["objetivo_curva"] = round(v["objetivo_curva"] * f, 1)
             r["objetivo_curva_cerrada"] = round(v["objetivo_curva_cerrada"] * f, 1)
             r["objetivo_por_tasa_giro"] = [[g, round(k * f, 1)] for g, k in v["objetivo_por_tasa_giro"]]
+            if modo == "lento":
+                r["objetivo_por_giro_total"] = [[g, round(k * f, 1)] for g, k in v["objetivo_por_giro_total"]]
             r.update(mr.get("velocidad", {}))
-            cache = (clave, r)
-            self._vcfg_rapido = cache
-        return cache[1]
+            cache[clave] = r
+        return cache[clave]
 
     def ecfg(self):
         """2.6.0: esquinas para la VELOCIDAD (con el modo rápido, +5 km/h en las que no tienen regla)."""
         es = self.cfg.get("esquinas", {})
-        if not getattr(self, "modo_rapido", False):
+        modo = self.modo_vel()
+        if modo is None:
             return es
-        extra = float(self.cfg.get("modo_rapido", {}).get("extra_esquina_kmh", 5))
+        extra = float(self.cfg.get("modo_" + modo, {}).get("extra_esquina_kmh", 5 if modo == "rapido" else -3))
         r = dict(es)
         for k in ("objetivo_esquina_kmh", "objetivo_esquina_muy_cerrada_kmh"):
             if k in r:
-                r[k] = r[k] + extra
+                r[k] = max(6, r[k] + extra)
         return r
 
     def velocidad_objetivo(self, res, dt):
@@ -1249,8 +1284,6 @@ class Autopiloto:
             limites.append((o_e, "en esquina"))
         if self.fuera_de_calle:
             limites.append((self.cfg["calle"]["objetivo_fuera_de_calle"], "fuera de calle"))
-        if self.modo_lento:
-            limites.append((v["objetivo_modo_lento"], "MODO LENTO"))
         # v29: regla por lugar (rutas conocidas)
         if self.regla is not None and "max_kmh" in self.regla:
             limites.append((float(self.regla["max_kmh"]), "regla"))
@@ -1316,7 +1349,7 @@ class Autopiloto:
                        and all(t_ < gmax for _, t_ in res.get("tasas", []))
                        and res.get("esquina_dist") is None and not res["cerca_destino"]
                        and res.get("fin_ruta_dist") is None and md is None
-                       and not self.fuera_de_calle and not self.modo_lento)
+                       and not self.fuera_de_calle)
         if recta_larga:
             self.t_recta_larga_desde = self.t_recta_larga_desde or ahora_
         else:
@@ -1406,12 +1439,17 @@ class Autopiloto:
             lectura_ok = False
         # 2.3.2 (experimental): con límite bajo en reglas y curvas, el HUD llega 1-2 s tarde y el control
         # oscilaba (19 <-> 51 km/h con límite 40). Acelerar con menos fuerza y frenar solo si se pasa bastante.
-        suave_lenta = self.experimental("velocidad_suave_curvas") and not self.modo_rapido and obj < 50 and \
+        suave_lenta = self.experimental("velocidad_suave_curvas") and self.modo_vel() != "rapido" and obj < 50 and \
             (motivo_ in ("regla", "regla (antes)", "curva", "curva larga", "trazado", "camion torcido") or
              motivo_.startswith(("curva cerrada", "esquina", "en esquina")))      # 2.3.4: también esquinas
         if suave_lenta:
             margen = max(margen, v.get("suave_lenta_margen_kmh", 10))
             acel_max = min(acel_max, v.get("suave_lenta_acel_max", 0.6))
+        critico = motivo_.startswith(("esquina", "en esquina", "destino", "al marcador", "curva cerrada"))
+        if suave_v and not critico:
+            # 3.2.8: fuera de esquinas y llegadas, frenar solo si el HUD YA marca el exceso (la predicción con el
+            # retraso del HUD frenaba de más y después el camión caía 20 km/h)
+            lectura_ok = lectura_ok and self.kmh - obj > margen
         frenar = -err > margen and lectura_ok and self.kmh >= 8 and \
             not (self.kmh < v["sin_freno_bajo_kmh"] and -err < v["sin_freno_bajo_margen_kmh"])
         if obj > 0 and (parado or (self.estado == "ARRANCANDO" and self.kmh < 5)):
@@ -1422,17 +1460,21 @@ class Autopiloto:
             acel = crucero + integ + v.get("kp_acelerador", 0.03) * err_d
             tope = acel_max
             if suave_v:
-                # 3.2.4: en GTA el acelerador responde fuerte (soltarlo ya frena ~15 km/h/s) y el HUD llega tarde:
-                # el control iba y venía (24 <-> 48 km/h con límite 40). Cerca del objetivo, acelerador acotado
-                # alrededor del de mantener, y por poco exceso no se suelta del todo.
-                mant = crucero + max(0.0, integ)
+                # 3.2.8: el camión cargado pierde ~15 km/h/s con el acelerador bajo y gana solo ~8 con el máximo,
+                # y responde ~1 s tarde. Bajar el acelerador "porque se pasó 7" lo hacía caer de 47 a 24 (y luego
+                # pasarse de nuevo). Por eso: alrededor del acelerador de mantener, poca corrección hacia abajo,
+                # sin soltar del todo por poco exceso, y sin subir a tope estando cerca del objetivo.
+                mant = max(0.05, crucero + integ)
+                kp_sub = v.get("kp_subir", 0.01)
+                kp_baj = v.get("kp_bajar", 0.008)
+                acel = mant + (kp_sub if err_d > 0 else kp_baj) * err_d
                 if err < v.get("cerca_objetivo_kmh", 10):
-                    tope = min(acel_max, mant + v.get("cerca_extra", 0.10) + 0.015 * max(0.0, err))
+                    tope = min(acel_max, mant + v.get("cerca_extra", 0.05) + 0.012 * max(0.0, err))
                 if -err <= v.get("sin_soltar_kmh", 8):
-                    acel = max(acel, v.get("piso_crucero", 0.5) * mant)
+                    acel = max(acel, v.get("piso_mantener", 0.9) * mant)
             acel = max(0.0, min(acel, tope))
             if 0.0 < acel < acel_max and abs(err) < 15:
-                integ += v.get("ki_acelerador", 0.012) * err * dt
+                integ += (v.get("ki_sin_vaiven", 0.004) if suave_v else v.get("ki_acelerador", 0.012)) * err * dt
                 integ = max(-0.25, min(v.get("integral_acelerador_max", 0.4), integ))
             # justo después de frenar el HUD aún no muestra toda la bajada: no acelerar de golpe
             if ahora - getattr(self, "t_ultimo_freno_ped", -99.0) < v.get("tras_freno_seg", 0.8) and err < 10:
@@ -1446,7 +1488,7 @@ class Autopiloto:
         else:
             acel = 0.0
             freno = min(v["freno_max"], 0.10 + (-err) / 50)
-            if suave_v and suave_lenta and self.kmh - obj < v.get("freno_fuerte_exceso_kmh", 15):
+            if suave_v and self.kmh - obj < v.get("freno_fuerte_exceso_kmh", 15) and not critico:
                 # 3.2.4: con poco exceso, toque de freno suave (un pulso de 0,3 bajaba ~20 km/h en GTA)
                 freno = min(freno, v.get("freno_suave", 0.15))
         self.integ_acel = integ
@@ -1551,10 +1593,10 @@ class Autopiloto:
             self.iniciar_reproduccion(g)
             e = self.estado
         # v38: punto final con grabación (vuelta)
-        if e == "CONDUCIENDO" and self.tramo == 2 and self.grabs and getattr(self, "vuelta_lejos", False) \
+        if e == "CONDUCIENDO" and self.tramo == 2 and self._grabs_ahora() and getattr(self, "vuelta_lejos", False) \
                 and self.grab_final_hecha != self.t_fin_juego_ref():
             d_ = self.dist_punto()
-            g = self.grab_mod.buscar(self.grabs, "final", getattr(self, "recorrido", None), 2, d_, 25) \
+            g = self.grab_mod.buscar(self._grabs_ahora(), "final", getattr(self, "recorrido", None), 2, d_, 25) \
                 if d_ is not None else None
             if g is not None and d_ <= float(g["disparo"].get("metros", 0)):
                 self.grab_final_hecha = self.t_fin_juego_ref()
@@ -1608,7 +1650,7 @@ class Autopiloto:
                     self.ctrl.set(0.0, 0.0, fr)
                     return res, (0.0, 0.0, fr)
                 self.control_entregado = clave           # si lo reactivas aquí, no vuelve a parar
-                g = self.grab_mod.buscar(self.grabs, "distancia", getattr(self, "recorrido", None), self.tramo,
+                g = self.grab_mod.buscar(self._grabs_ahora(), "distancia", getattr(self, "recorrido", None), self.tramo,
                                          rg.get("desde"))
                 if g is not None:
                     self.iniciar_reproduccion(g)
@@ -1621,8 +1663,8 @@ class Autopiloto:
             d_g = getattr(self, "dist_filtrada", None)
             if d_g is None:
                 d_g = self.dist_punto()
-            g = self.grab_mod.buscar(self.grabs, "distancia", getattr(self, "recorrido", None), self.tramo, d_g, 60) \
-                if self.grabs and d_g is not None else None
+            g = self.grab_mod.buscar(self._grabs_ahora(), "distancia", getattr(self, "recorrido", None), self.tramo, d_g, 60) \
+                if self._grabs_ahora() and d_g is not None else None
             if g is not None and self.tramo == 1 and float(g["disparo"].get("metros") or 0) >= 1000:
                 g = None          # en la ida solo valen las del final (p. ej. entrada a la granja)
             if g is not None and float(g["disparo"].get("metros") or 0) >= 1000 and \
@@ -1934,7 +1976,11 @@ class Autopiloto:
         return self.dc_suave
 
     def experimental(self, clave):
-        """2.3.2: funciones en prueba (pestaña Experimental). Encendidas por defecto."""
+        """2.3.2: funciones en prueba (pestaña Experimental). Encendidas por defecto.
+        3.5.0: una regla (de un lugar o general) puede prenderlas o apagarlas en su zona («exp»)."""
+        e = (getattr(self, "regla", None) or {}).get("exp") or {}
+        if clave in e:
+            return bool(e[clave])
         return bool(self.cfg.get("experimental", {}).get(clave, True))
 
     def _hud_metros(self):
@@ -2430,9 +2476,14 @@ class Autopiloto:
         if self.tramo == 2 and not getattr(self, "vuelta_lejos", False):
             d = None
         rapido = bool(getattr(self, "modo_rapido", False))
-        nueva = self.rutas_mod.regla_activa(self.rutas, self.ruta_act, self.tramo, d, rapido=rapido)
+        lento = bool(getattr(self, "modo_lento", False))
+        nueva = self.rutas_mod.regla_activa(self.rutas, self.ruta_act, self.tramo, d, rapido=rapido, lento=lento)
+        if self.tramo in (0, 1, 2) and hasattr(self.rutas_mod, "reglas_generales"):     # 3.5.0
+            gen = self.rutas_mod.reglas_generales(self.rutas, self.ruta_act, self.tramo, rapido=rapido, lento=lento)
+            nueva = self.rutas_mod.combinar(gen, nueva)
         self.regla_prox = self.rutas_mod.regla_proxima(self.rutas, self.ruta_act, self.tramo, d,
-                                                       self.cfg["velocidad"].get("regla_antes_m", 80), rapido=rapido)
+                                                       self.cfg["velocidad"].get("regla_antes_m", 80), rapido=rapido,
+                                                       lento=lento)
         if (nueva or {}).get("nota") != (self.regla or {}).get("nota"):
             if nueva is not None:
                 extra = f"máx {nueva['max_kmh']} km/h" if "max_kmh" in nueva else ""
@@ -2527,7 +2578,7 @@ class Autopiloto:
         if tipo == "accion":
             self.trabajo_completado = False
         if tipo in ("cargado", "descargado"):
-            g = self.grab_mod.buscar(self.grabs, tipo, getattr(self, "recorrido", None), objetivo)
+            g = self.grab_mod.buscar(self._grabs_ahora(), tipo, getattr(self, "recorrido", None), objetivo)
             self.grab_pendiente = g            # se reproduce cuando el juego suelte el camión
         if tipo == "cargado":                  # 2.3.0: reconocer el recorrido con la distancia nueva
             self.t_cargado = time.time()
@@ -2624,7 +2675,7 @@ class Autopiloto:
                                    f"{self.kmh_obj:.0f},{res['rumbo']},{res['desvio']},"
                                    f"{res['giro_adelante']},{d:.3f},{a:.3f},{f:.3f},"
                                    f"{res.get('en_calle', 1.0):.2f},{res.get('calle_corr', 0.0):.1f},{int(res.get('gps_fuera', False))},"
-                                   f"{getattr(self, 'motivo', '-')},{2 if self.modo_rapido else int(self.modo_lento)},"
+                                   f"{getattr(self, 'motivo', '-')},{ {'rapido': 2, 'lento': 1}.get(self.modo_vel(), 0)},"
                                    f"{(self.res_carril or {}).get('desvio', 0):.3f},{(self.res_carril or {}).get('confianza', 0):.2f},"
                                    f"{int(getattr(self, 'carril_usado', False))},"
                                    f"{_f(res.get('marcador_dist'))},{_f(res.get('marcador_ang'))},"
@@ -2644,7 +2695,8 @@ class Autopiloto:
                         "estado": self.estado, "etapa": self.texto_etapa(), "tramo": self.tramo,
                         "kmh": self.kmh, "kmh_obj": self.kmh_obj, "motivo": getattr(self, "motivo", "-"),
                         "direccion": d, "acelerador": a, "freno": f,
-                        "lento": self.modo_lento, "rapido": self.modo_rapido, "carril_activo": self.usar_carril,
+                        "lento": self.modo_vel() == "lento", "rapido": self.modo_vel() == "rapido",
+                        "carril_activo": self.usar_carril,
                         "carril_usado": getattr(self, "carril_usado", False),
                         "carril_conf": (self.res_carril or {}).get("confianza"),
                         "fuera_calle": self.fuera_de_calle, "ruta": res["encontrada"],
@@ -2712,7 +2764,7 @@ class Autopiloto:
                 except Exception:
                     pass
                 self.log.close()
-                if self.experimental("mapa_ruta") and getattr(self, "rumbo", None) is not None:
+                if getattr(self, "rumbo", None) is not None:   # 3.4.0: el mapa ya no es experimental
                     try:                                   # 2.4.0: mapa de la ruta, si aún no existe
                         import mapa
                         for rec, tramos, _a in mapa.desde_viaje(self.log.name, solo_si_falta=True):

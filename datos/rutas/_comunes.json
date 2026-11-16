@@ -34,10 +34,10 @@
     },
     {
       "desde": 1480,
-      "hasta": 1310,
+      "hasta": 1200,
       "max_kmh": 50,
       "desplazamiento_px": 0,
-      "nota": "Strawberry Avenue (vuelta): faroles y carteles; con +1,0 rozaba los carteles a la derecha (5 viajes)"
+      "nota": "Strawberry Avenue (vuelta): faroles y carteles; con +1,0 rozaba los carteles a la derecha (5 viajes). 1.2.7: hasta 1,20 km (al terminar en 1,31 aceleraba a 63 y se iba a la izquierda)"
     },
     {
       "desde": 1060,
@@ -64,10 +64,18 @@
     },
     {
       "desde": 500,
-      "hasta": 230,
+      "hasta": 330,
       "desplazamiento_px": -2.5,
       "anticipacion": 0.85,
       "nota": "Banning (vuelta): resto de la calle, más a la izquierda"
+    },
+    {
+      "desde": 330,
+      "hasta": 130,
+      "max_kmh": 35,
+      "desplazamiento_px": -1.0,
+      "anticipacion": 0.85,
+      "nota": "Banning (vuelta): final de la calle, menos a la izquierda y despacio (1.2.7: con -2,5 se salía por la izquierda en 237 m)"
     },
     {
       "desde": 130,

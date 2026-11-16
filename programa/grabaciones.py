@@ -59,12 +59,35 @@ def cargar_todas(carpeta=CARPETA):
     return out
 
 
+def existe(nombre, trazado=False):
+    """3.5.0: ¿ya hay una grabación (o trazado) con ese nombre? Devuelve la ruta del archivo o None."""
+    carpeta = CARPETA_TRAZADOS if trazado else CARPETA
+    ruta = os.path.join(carpeta, _slug(nombre or ("trazado" if trazado else "grabacion")) + ".json")
+    return ruta if os.path.exists(ruta) else None
+
+
+def _respaldar(ruta):
+    try:
+        import carpetas
+        import shutil
+        import time
+        dest = os.path.join(carpetas.RESPALDOS, "grabaciones")
+        os.makedirs(dest, exist_ok=True)
+        base = os.path.splitext(os.path.basename(ruta))[0]
+        shutil.copy2(ruta, os.path.join(dest, f"{base}_{time.strftime('%Y%m%d_%H%M%S')}.json"))
+    except Exception as e:  # noqa
+        print(f"[i] No se pudo respaldar {ruta}: {e}")
+
+
 def guardar(g, carpeta=CARPETA):
+    """g["_reemplazar"] = True (3.5.0): si ya existe una con el mismo nombre, la reemplaza (con copia antes)."""
     os.makedirs(carpeta, exist_ok=True)
     base = _slug(g.get("nombre", "grabacion"))
     ruta = os.path.join(carpeta, base + ".json")
+    if g.get("_reemplazar") and os.path.exists(ruta):
+        _respaldar(ruta)
     n = 2
-    while os.path.exists(ruta):
+    while os.path.exists(ruta) and not g.get("_reemplazar"):
         ruta = os.path.join(carpeta, f"{base}_{n}.json")
         n += 1
     g = {k: v for k, v in g.items() if not k.startswith("_")}
@@ -377,8 +400,10 @@ def guardar_trazado(t, carpeta=None):
     os.makedirs(carpeta, exist_ok=True)
     base = _slug(t.get("nombre", "trazado"))
     ruta = os.path.join(carpeta, base + ".json")
+    if t.get("_reemplazar") and os.path.exists(ruta):
+        _respaldar(ruta)
     n = 2
-    while os.path.exists(ruta):
+    while os.path.exists(ruta) and not t.get("_reemplazar"):
         ruta = os.path.join(carpeta, f"{base}_{n}.json")
         n += 1
     t = {k: v for k, v in t.items() if not k.startswith("_")}

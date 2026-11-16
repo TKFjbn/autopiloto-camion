@@ -28,7 +28,7 @@ REPO = "TKFjbn/autopiloto-camion"
 API = "https://api.github.com/repos/{repo}/releases/latest"
 TIMEOUT = 8
 
-RAIZ_ARCHIVOS = ("CAMBIOS.md", "LEEME.md", "PROMPT_CALIBRACION.md", "PUBLICAR.md")      # se actualizan junto al programa
+RAIZ_ARCHIVOS = ("CAMBIOS.md", "LEEME.md", "PROMPT_CALIBRACION.md", "PUBLICAR.md", "Crear Autopiloto.exe.bat")      # se actualizan junto al programa
 NO_TOCAR_EN_PROGRAMA = {"config.json"}                                   # restos de versiones viejas del usuario
 
 

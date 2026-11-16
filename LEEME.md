@@ -1,4 +1,4 @@
-# Autopiloto de camión (GTA V RP) · versión 3.2.7
+# Autopiloto de camión (GTA V RP) · versión 3.5.0
 
 Sigue la ruta roja del minimapa en las 3 partes en que se conduce y espera solo en las paradas.
 No toca el launcher ni la carpeta del juego: lee la pantalla y simula teclas o un mando.
@@ -12,6 +12,33 @@ No toca el launcher ni la carpeta del juego: lee la pantalla y simula teclas o u
 | 5. Descargar | "Descargando camión…": espera | — |
 | 6. Volver a B | Ruta de vuelta | Autopiloto |
 | 7. Terminar | Al desaparecer la ruta queda en TERMINADO | Tú |
+
+## Novedades de la 3.5.0
+- **Modo lento nuevo:** es el modo rápido al revés: rectas 60, recta larga 70, curvas −15 % y esquinas −3 km/h, hasta que lo apagues (RE PÁG o el botón en Mandos). Ya no existe el límite de 15 km/h por 90 s.
+- **Reglas:**
+  - **Esquina: velocidad y avanzar antes de girar:** una barra «girar antes ◄ normal ► avanzar más» mueve el punto donde dobla respecto del normal. En Avanzado sigue el valor fijo «Giro en esquinas». La misma barra está en «+ Regla aquí» de las observaciones.
+  - **Regla general (todo el tramo de este recorrido):** casilla en «Editar regla». Vale en todo el tramo; una regla de un lugar manda sobre ella en lo que pida. Se lista como «todo el tramo» y aparece en un cartel arriba a la izquierda del mapa.
+  - **Modo de velocidad aquí:** lento / rápido / normal en la zona de la regla (o en todo el tramo si es general). Y «Solo en modo lento», igual que «Solo en modo rápido».
+  - **Funciones experimentales aquí:** velocidad sin sube y baja, velocidad suave en curvas, lado suave en autopista y usar grabaciones: «como siempre / prendida / apagada» en la zona de la regla.
+  - Las reglas creadas en observaciones se ven en verde también en la lista y se dibujan encima de todo en el mapa (las vacías, en naranja).
+- **Grabaciones:** si guardas una con el mismo nombre que otra, pregunta si reemplazar la antigua (queda copia en `mi_equipo/respaldos/grabaciones`). Nueva tecla para empezar/terminar de grabar: **F5** (F7 no sirve porque oculta el HUD); se cambia en Ajustes → Cambiar teclas.
+- **Mover cosas:** «Tramos compartidos» está abajo en la pestaña Mapa de ruta («Ver tramos compartidos entre recorridos»); «Usar grabaciones de teclas» está en Ajustes → Conducción (ya no es experimental).
+- **Volante en Conducir:** un círculo que gira con el % y el lado. En Ajustes → Apariencia → Volante se puede volver a la barra horizontal.
+
+## Novedades de la 3.4.2
+- **Observaciones:** el cuadro de texto de cada punto ahora se llama **«Indicaciones:»** (qué debería hacer ahí). Con **«+ Regla aquí»** creas una regla en ese lugar (desde/hasta, bajar velocidad, esquina, no frenar, entregar el control, ir más a un lado con una barra); la nota son tus indicaciones y se guarda al guardar las observaciones.
+- **Colores de las reglas en el Mapa de ruta:** verde = creada en observaciones (hasta que la cambies), naranja = vacía (no pide nada), amarillo = velocidad, morado = esquina, azul = lado y otras, rojo = entregar control, gris = apagada. La leyenda está abajo del mapa.
+
+## Novedades de la 3.4.1
+- **«⧉ Consola»** (arriba, junto a Completa / Compacta / Mini): pasa el registro a una ventana aparte y las pestañas ganan ese espacio. Cierra esa ventana o pulsa otra vez el botón para devolverlo abajo. Se recuerda.
+- **Barra para bajar** en Calibración, Ajustes, Experimental y el panel derecho del Mapa de ruta cuando no caben en la pantalla (la rueda del mouse también sirve).
+
+## Novedades de la 3.4.0
+- **Autopiloto.exe:** en Ajustes → Versión y carpetas, **«Crear Autopiloto.exe…»** (o doble clic en `Crear Autopiloto.exe.bat`). Crea un lanzador chico con ícono que abre el programa sin ventana negra, igual que `Autopiloto.bat`. Pregunta si abrir siempre como administrador (si el juego corre como administrador, responde S) y si crear un acceso directo en el escritorio. Lo arma el compilador de C# que trae Windows; se hace una sola vez y las actualizaciones no lo cambian. Los .bat siguen funcionando.
+- **Vistas en Conducir:** arriba de las vistas marca qué quieres ver: **Minimapa**, **Cámara / carril** y **Mapa de ruta**. Se reparten solas el espacio: una ocupa todo, dos o tres van lado a lado (la cámara, angosta, ocupa menos ancho) y con cuatro (más adelante, YOLO) van tres arriba y una ancha abajo. «⧉ Separar» sigue en cada una.
+- **Mapa de ruta en Conducir:** solo la ruta del tramo actual y el camión. Rueda = zoom; con el camión andando lo sigue y ajusta el zoom solo según la velocidad (el zoom a mano se respeta unos segundos). **Doble clic** abre la pestaña **«Mapa de ruta»** en ese recorrido y tramo para editar.
+- **«Mapa de ruta» es una pestaña** (antes una ventana aparte desde Experimental). El mapa se arma solo al detener el programa (ya no es experimental; necesita «Rumbo exacto»).
+- **Modo lento y modo rápido** dejan de ser experimentales: sus botones están en Conducir → Mandos y sus teclas (RE PÁG y F10) en Ajustes → Cambiar teclas → Modos de velocidad.
 
 ## Ventana, panel y actualizaciones (3.1.0)
 - **Botones de todos los días** siempre a la vista bajo el estado del viaje: Iniciar, Detener, Activar / desactivar (INSERT), Saltar etapa (AV PÁG), Ayuda de carril (SUPR), Grabar y Hito (F9).
@@ -34,11 +61,19 @@ La primera vez que abres el programa sale un **tutorial** con los pasos para emp
 
 **Hitos (2.3.0):** si durante el viaje ves algo raro (va muy lento, pasa muy cerca de un poste…), pulsa **F9** en el juego o «⚑ Marcar hito». Al terminar aparece en las observaciones con sus capturas (3 s antes, 1,5 s antes y el momento, porque F9 se aprieta después de lo que pasó) para que expliques por qué lo marcaste. Si lo dejas en blanco, no se guarda.
 
-**Mapa de la ruta (2.4.0, Experimental):** con «Rumbo exacto» encendido, el programa detecta la N del minimapa y guarda hacia dónde apunta el camión. Al detener el programa se arma solo el mapa del recorrido (`datos/mapas/`). En Experimental → **Abrir mapa de la ruta…** se ven las reglas sobre el camino y se pueden editar, apagar, borrar o crear con un clic, además del camión en tiempo real. Cada cambio guarda antes una copia en `mi_equipo/respaldos/rutas/`.
+**Mapa de la ruta (2.4.0; pestaña propia desde la 3.4.0):** con «Rumbo exacto» encendido, el programa detecta la N del minimapa y guarda hacia dónde apunta el camión. Al detener el programa se arma solo el mapa del recorrido (`datos/mapas/`). En la pestaña **Mapa de ruta** se ven las reglas sobre el camino y se pueden editar, apagar, borrar o crear con un clic, además del camión en tiempo real. Cada cambio guarda antes una copia en `mi_equipo/respaldos/rutas/`.
+
+**Mapa de la ruta desde la 3.3.0:**
+- **Crear una regla:** «+ Nueva regla» y arrastra por la ruta desde donde empieza hasta donde termina (o clic derecho en la ruta → «Crear regla aquí»). La regla elegida tiene dos círculos blancos en los extremos: arrástralos para alargarla o acortarla.
+- **Qué hace la regla:** marca uno o más tipos (Bajar velocidad, Ir más a la izquierda/derecha con una barra, Esquina, No frenar, Entregar el control) o «Avanzado» para ver todos los valores. Si se pisa con otra regla que pide otra cosa, sale un aviso.
+- **Ubicarse:** al pasar el mouse por la ruta se ve el km, la calle y la zona. Hay nombres de zonas y calles (sacados de tus viajes) y **puntos de interés** (`datos/pois.json`): clic derecho en la ruta → «Agregar punto de interés aquí…»; clic derecho en uno → renombrar, cambiar ícono o borrar. El buscador encuentra calles, zonas, puntos de interés o un km («2,5» o «1800 m»).
+- **Abrir viaje…:** dibuja un viaje encima (verde = en el límite, amarillo = algo pasado, rojo = muy pasado) y marca con ▲ dónde tomaste el control, chocó, se atascó o salió de la calle. Clic en una ▲ = crear una regla ahí.
+- **Deshacer** vuelve atrás el último cambio (reglas o puntos de interés).
+- **Camino a cargar:** es uno solo para todos los recorridos (`datos/mapas/_camino_a_cargar.json`), armado juntando tus viajes. El cuadro verde es la **zona de aparición**: el camión aparece en distintos lugares y el camino empieza donde llega a la calle común; una regla dentro de esa zona puede caer en otro lugar (el mapa avisa).
 
 **Tiempos (2.7.0):** en la pestaña Viajes, la columna Duración y, al elegir un viaje, su ida, su vuelta y el promedio del recorrido (normal y rápido por separado). En el panel principal, «Último viaje».
 
-**Tramos compartidos (2.5.0, Experimental):** el programa compara el rumbo de los viajes de cada recorrido y encuentra solo las partes donde dos recorridos van por las mismas calles (por ejemplo, la ida de Granja 1 y Granja 2 hasta Vinewood Park Drive). En un tramo **confirmado**, las reglas de un recorrido valen también para el otro: se ajusta una vez y sirve para los dos. Los tramos nuevos aparecen como **pendientes** en Experimental → Tramos compartidos y en el mapa (en amarillo) hasta que los confirmes. Si una regla tiene que valer solo para un recorrido, marca «Solo en esta ruta».
+**Tramos compartidos (2.5.0; desde la 3.5.0 en la pestaña Mapa de ruta):** el programa compara el rumbo de los viajes de cada recorrido y encuentra solo las partes donde dos recorridos van por las mismas calles (por ejemplo, la ida de Granja 1 y Granja 2 hasta Vinewood Park Drive). En un tramo **confirmado**, las reglas de un recorrido valen también para el otro: se ajusta una vez y sirve para los dos. Los tramos nuevos aparecen como **pendientes** en Mapa de ruta → «Ver tramos compartidos entre recorridos» y en el mapa (en amarillo) hasta que los confirmes. Si una regla tiene que valer solo para un recorrido, marca «Solo en esta ruta».
 
 **Pestaña Experimental (2.3.2):** funciones en prueba con su interruptor. Si algo empeora, apágalo ahí; el cambio vale al momento.
 
@@ -156,8 +191,9 @@ python autopiloto.py --debug --log viaje.csv
 | Tecla (por defecto) | Acción |
 |---|---|
 | INSERT | Activa o desactiva el autopiloto (suelta las teclas al instante) |
-| RE PÁG | Modo lento ON/OFF (Experimental; para el puente estrecho) |
-| F10 | Modo rápido ON/OFF (Experimental, 2.6.0: más velocidad y curvas más fluidas; puede chocar más) |
+| RE PÁG | Modo lento ON/OFF (3.5.0: menos velocidad en todo; las reglas mandan igual) |
+| F5 | Empezar / terminar de grabar un recorrido (3.5.0) |
+| F10 | Modo rápido ON/OFF (2.6.0: más velocidad y curvas más fluidas; fijo desde la 3.4.0) |
 | AV PÁG | Pasa a la siguiente etapa si el programa se desfasó |
 | FIN | Salir |
 | **S** o **Espacio** | Tomas el control: el autopiloto se desactiva solo |
@@ -168,7 +204,7 @@ python autopiloto.py --debug --log viaje.csv
 Si reinicias a mitad de trabajo: `--tramo 1` (ir a A) o `--tramo 2` (volver a B).
 
 ## Ajuste fino (config.json)
-La velocidad se controla leyendo el velocímetro, con objetivos de 80 km/h en recta (`objetivo_recta`), 40 en curvas normales (`objetivo_curva`), 24 en esquinas (`objetivo_curva_cerrada`) y 15 en modo lento; si ve dónde termina la ruta, va frenando hasta 20 (`objetivo_cerca_destino`). El HUD solo se actualiza cada ~0,6 s y con retraso, así que el programa **predice** la velocidad real. Si se pasa del objetivo **suelta el acelerador** en vez de frenar (en recta solo frena si va más de 12 km/h por encima). Antes de las curvas frena **a pulsos cortos** y espera a ver el efecto, porque los frenos de GTA son muy fuertes.
+La velocidad se controla leyendo el velocímetro, con objetivos de 80 km/h en recta (`objetivo_recta`), 40 en curvas normales (`objetivo_curva`), 24 en esquinas (`objetivo_curva_cerrada`) (en modo lento, 60 en recta y todo más lento); si ve dónde termina la ruta, va frenando hasta 20 (`objetivo_cerca_destino`). El HUD solo se actualiza cada ~0,6 s y con retraso, así que el programa **predice** la velocidad real. Si se pasa del objetivo **suelta el acelerador** en vez de frenar (en recta solo frena si va más de 12 km/h por encima). Antes de las curvas frena **a pulsos cortos** y espera a ver el efecto, porque los frenos de GTA son muy fuertes.
 
 **Cómo dirige (v5):** parte del punto de la ruta más cercano al camión (fuera de la flecha blanca, que tapa la línea) y la recorre siguiendo su línea central (en `--debug` es la línea **cian** junto al camión y **naranja** más adelante). Mira dos cosas: hacia dónde apunta la ruta junto al camión (flecha magenta) y cuántos píxeles te has apartado de ella (`desvío`). La parte naranja solo sirve para frenar antes de las curvas. La consola muestra `rumbo`, `desvío` y `curva`.
 
@@ -201,7 +237,7 @@ La velocidad se controla leyendo el velocímetro, con objetivos de 80 km/h en re
 | Velocidad en consola siempre 0 o rara | Recalibra la región del velocímetro (paso 4) o prueba `--simular captura.png` |
 | No tienes velocímetro / falla | `"velocimetro": {"activo": false}`: usa acelerador fijo (`sin_velocimetro_*`) |
 
-La consola y la ventana `--debug` muestran `velocidad actual/objetivo km/h (motivo)`. El motivo dice qué está limitando la velocidad: `recta`, `curva`, `curva cerrada`, `esquina`, `destino`, `fuera de calle`, `MODO LENTO`... El modo lento se apaga solo a los 90 s (`modo_lento_max_seg`). Con `--log viaje.csv` se guarda todo; si me lo pasas, lo ajusto.
+La consola y la ventana `--debug` muestran `velocidad actual/objetivo km/h (motivo)`. El motivo dice qué está limitando la velocidad: `recta`, `curva`, `curva cerrada`, `esquina`, `destino`, `fuera de calle`, `MODO LENTO`... Con `--log viaje.csv` se guarda todo; si me lo pasas, lo ajusto.
 
 **Mando virtual (recomendado):** instala `vgamepad` y pon `"backend": "mando"`. La dirección y el acelerador pasan a ser analógicos, y con un camión eso evita muchísimo los volantazos del teclado.
 Con este modo, pulsar W/A/S/D o Espacio también te devuelve el control.

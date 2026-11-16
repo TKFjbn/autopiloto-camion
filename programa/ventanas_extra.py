@@ -38,10 +38,11 @@ CAMPOS_TECLAS = (
     ("carril", "Ayuda de carril", "Activa o desactiva la ayuda de carril con la cámara."),
     ("panel", "Panel flotante", "Prende o apaga el panel flotante (la tira chica arriba al centro del juego)."),
     ("hito", "Marcar hito", "Marca un momento del viaje (con 3 capturas) para explicarlo en las observaciones."),
+    ("grabar", "Grabar recorrido", "Empieza a grabar lo que haces (conduce tú); vuelve a pulsarla para terminar y ponerle nombre."),   # 3.5.0
     ("tomar_control:0", "Tomar el control (1)", "Al pulsarla en el juego, el autopiloto se desactiva y manejas tú."),
     ("tomar_control:1", "Tomar el control (2)", "Segunda tecla para tomar el control (opcional)."),
-    ("---", "Experimental", ""),                           # 2.6.0: apartado de funciones en prueba
-    ("modo_lento", "Modo lento", "Va despacio (para el puente estrecho). Se apaga solo a los 90 s."),
+    ("---", "Modos de velocidad", ""),                     # 3.4.0: ya no son experimentales
+    ("modo_lento", "Modo lento", "Menos velocidad en todo (rectas 60, curvas y esquinas más lentas). Las reglas mandan igual."),
     ("modo_rapido", "Modo rápido", "Más velocidad y curvas más fluidas (puede chocar más). Las reglas mandan igual."),
 )
 # teclas que usa el juego (no conviene que activen funciones del programa)

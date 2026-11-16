@@ -141,8 +141,6 @@ DEFAULTS = {
         "recta_larga_seg": 2.0,        # tiempo que debe seguir recta antes de subir a la velocidad larga
         "objetivo_curva": 60,          # curva normal (~40°)
         "objetivo_curva_cerrada": 40,  # curva cerrada / esquina (~75° o más)
-        "objetivo_modo_lento": 15,
-        "modo_lento_max_seg": 90,     # el modo lento se apaga solo pasado este tiempo (0 = nunca)
         "objetivo_cerca_destino": 30,
         "objetivo_por_giro_total": [[20, 80], [35, 70], [55, 58], [80, 46]],  # curvas largas (grados -> km/h; v30 más rápido)
         "giro_total_extra_por_px": 0.25,
@@ -228,12 +226,13 @@ DEFAULTS = {
     "teclas": {
         "activar": "INSERT",
         "modo_lento": "PAGEUP",
-        "modo_rapido": "F10",         # 2.6.0 (experimental)
+        "modo_rapido": "F10",         # 2.6.0; fijo desde la 3.4.0
         "saltar_etapa": "PAGEDOWN",
         "salir": "END",
         "capturar": "F11",
         "carril": "DELETE",           # activar/desactivar la ayuda de carril
         "hito": "F9",                 # 2.3.0: marcar un momento para comentarlo en las observaciones
+        "grabar": "F5",               # 3.5.0 (no F7: oculta el HUD): empezar / terminar de grabar un recorrido
         "panel": "F6",                # 3.1.0: prende o apaga el panel flotante (la interfaz lo lee)
         "tomar_control": ["S", "SPACE"],
     },
@@ -242,11 +241,10 @@ DEFAULTS = {
         "velocidad_sin_vaiven": True,  # 3.2.4: anticipar y no soltar del todo el acelerador por poco
         "trazados_comunes_vuelta": True,
         "rumbo_norte": True,          # 2.4.0: rumbo exacto con la N del minimapa (se guarda en el viaje)
-        "mapa_ruta": True,            # 2.4.0: ventana del mapa de la ruta
         "usar_grabaciones": True,     # 2.4.1: apagar para hacer entradas/salidas a mano sin borrar nada
         "lado_suave_autopista": True  # 2.5.2: corrección de lado promediada a 70 km/h o más
     },
-    "modo_rapido": {                  # 2.6.0 (experimental): más velocidad y curvas más fluidas
+    "modo_rapido": {                  # 2.6.0 (fijo desde la 3.4.0): más velocidad y curvas más fluidas
         "factor_curvas": 1.15,        # curvas normales y cerradas (tabla por tasa de giro y por grados)
         "extra_esquina_kmh": 5,       # esquinas sin regla (las de las reglas no cambian)
         "velocidad": {                # valores que reemplaza mientras está activo
@@ -265,6 +263,16 @@ DEFAULTS = {
             "subida_objetivo_kmh_seg": 12,
             "freno_max": 0.55,        # a más velocidad hace falta frenar más fuerte cuando sí hay que frenar
             "freno_espera_seg": 0.5
+        }
+    },
+    "modo_lento": {                   # 3.5.0: el modo rápido al revés (tecla RE PÁG o reglas con "modo": "lento")
+        "factor_curvas": 0.85,        # curvas normales, cerradas y largas
+        "extra_esquina_kmh": -3,      # esquinas sin regla (las de las reglas no cambian)
+        "velocidad": {
+            "objetivo_recta": 60,
+            "objetivo_recta_larga": 70,
+            "objetivo_bifurcacion": 45,
+            "objetivo_bifurcacion_autopista": 55
         }
     },
     "lado_suave": {                   # 2.5.2

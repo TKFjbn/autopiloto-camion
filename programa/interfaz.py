@@ -15,6 +15,7 @@ import time
 import json
 import os
 import queue
+import math
 import shutil
 import sys
 import threading
@@ -81,7 +82,10 @@ PREFS_DEFECTO = {
     "tema": "oscuro",
     "vista": "completa",                 # completa, compacta, mini
     "ayuda": True,                       # mensajes al pasar el mouse
-    "separadas": {"minimapa": False, "carril": False},
+    "separadas": {"minimapa": False, "carril": False, "mapa": False},
+    "vistas": {"minimapa": True, "carril": True, "mapa": True},       # 3.4.0: qué vistas se ven en Conducir
+    "consola_separada": False,                                         # 3.4.1
+    "volante": "circulo",                                              # 3.5.0: "circulo" o "barra"
     "geometria": {"completa": "1280x940", "compacta": "860x840", "mini": "640x560"},
     "notificaciones": dict(notificador.DEFECTO),
     "tutorial_visto": False,             # 2.2.0: el tutorial se abre solo la primera vez
@@ -199,6 +203,10 @@ OBS_RAPIDAS = (                                   # 2.5.4: selecciones rápidas 
 )
 
 
+def limpiar_texto(t):
+    return " ".join(str(t).replace("|", "/").split())
+
+
 class App:
     def __init__(self, root):
         self.root = root
@@ -243,9 +251,11 @@ class App:
         self.aplicar_tema(self.prefs["tema"], guardar=False)
         self.notif = notificador.Notificador(root, self.prefs["notificaciones"], self._titulo_juego())
         self.poner_vista(self.prefs["vista"], guardar=False)
-        for nombre in ("minimapa", "carril"):
+        for nombre in ("minimapa", "carril", "mapa"):
             if self.prefs["separadas"].get(nombre):
                 self.separar(nombre)
+        if self.prefs.get("consola_separada"):
+            self.separar_consola()
         self._cargar_teclas()
         print(f"\n===== {datetime.datetime.now():%Y-%m-%d %H:%M:%S}  Autopiloto {version.VERSION} =====")
         if MOVIDOS:
@@ -275,6 +285,32 @@ class App:
         n["tipos"] = dict(notificador.DEFECTO["tipos"], **p["notificaciones"].get("tipos", {}))
         p["notificaciones"] = n
         return p
+
+    def crear_lanzador(self):
+        """3.4.0: abre «Crear Autopiloto.exe.bat» (lo copia a la carpeta del autopiloto si no está)."""
+        destino = os.path.join(carpetas.RAIZ, "Crear Autopiloto.exe.bat")
+        origen = os.path.join(carpetas.PROGRAMA, "lanzador", "Crear Autopiloto.exe.bat")
+        try:
+            if not os.path.exists(destino):
+                shutil.copy2(origen, destino)
+            os.startfile(destino)                                   # noqa (solo Windows)
+        except Exception as e:  # noqa
+            print(f"[!] No se pudo abrir «Crear Autopiloto.exe.bat»: {e}")
+
+    def olvidar_numeros(self):
+        """3.2.8: borra mi_equipo/plantillas_hud_usuario_v3.npz (números del HUD aprendidos en este PC)."""
+        from tkinter import messagebox
+        import hud_texto
+        n = hud_texto.APRENDIDAS.cuantos()
+        if not messagebox.askyesno("Olvidar números aprendidos",
+                                   f"Se borran los {n} números del HUD aprendidos en este PC y se vuelven a "
+                                   "aprender solos en los próximos viajes. ¿Seguir?", parent=self.root):
+            return
+        try:
+            hud_texto.APRENDIDAS.olvidar()
+            print(f"[i] Números del HUD aprendidos: borrados ({n}). Se vuelven a aprender solos.")
+        except Exception as e:  # noqa
+            print(f"[!] No se pudieron borrar: {e}")
 
     def _restaurar_sesion(self):
         """3.2.6: «Empezar en» y «Recorrido» vuelven a donde quedaron al detener o cerrar el programa."""
@@ -399,8 +435,11 @@ class App:
         for w, roles in list(self._tk):
             self._pintar(w, roles)
         if hasattr(self, "txt_log"):
-            for tag in ("error", "aviso", "info", "ok", "cambio"):
-                self.txt_log.tag_configure(tag, foreground=T[tag])
+            for t in self._consolas():
+                for tag in ("error", "aviso", "info", "ok", "cambio"):
+                    t.tag_configure(tag, foreground=T[tag])
+            if getattr(self, "win_consola", None) is not None:
+                self.win_consola[1].configure(bg=T["log_bg"], fg=T["log_fg"])
         for nombre, (win, _lbl) in self.ventanas.items():
             win.configure(bg=T["bg"])
         self._pintar_barras(0.0, 0.0, 0.0)
@@ -449,6 +488,10 @@ class App:
             b.pack(side="left", padx=1)
             self._ayuda(b, "Vista " + txt.lower() + ": " + ayuda)
             self.btn_vista[clave] = b
+        self.btn_consola = ttk.Button(seg, text="⧉ Consola", style="Seg.TButton", command=self.alternar_consola)
+        self.btn_consola.pack(side="left", padx=(8, 1))                         # 3.4.1
+        self._ayuda(self.btn_consola, "Pasa el registro (consola) a una ventana aparte, o lo devuelve abajo. "
+                                      "Separado, las pestañas ganan ese espacio.")
         self.btn_nueva = ttk.Button(cab, text="", style="Acento.TButton",
                                     command=lambda: ventana_actualizar.mostrar_ultima(self))     # 3.1.0
         self._ayuda(self.btn_nueva, "Hay una versión nueva del programa. Clic para ver qué cambia y actualizar.")
@@ -503,6 +546,10 @@ class App:
         nb = self.nb = ttk.Notebook(self.cont)
         nb.pack(fill="both", expand=True, pady=(8, 0))
         self._pestana_conducir()
+        self.tab_mapa = ttk.Frame(nb, style="Panel.TFrame")               # 3.4.0: editor del mapa
+        nb.add(self.tab_mapa, text="  Mapa de ruta  ")
+        ttk.Label(self.tab_mapa, text="Abriendo el mapa…", style="Tenue.TLabel").pack(pady=20)
+        self.ventana_mapa = None
         self._pestana_grabaciones()
         self._pestana_viajes()
         self._pestana_calibracion()
@@ -536,6 +583,17 @@ class App:
         self.txt_log.configure(yscrollcommand=sb.set)
         sb.pack(side="right", fill="y")
         self.txt_log.pack(fill="both", expand=True)
+
+    def _pestana_desplazable(self, texto):
+        """3.4.1: pestaña con barra a la derecha cuando el contenido no cabe; devuelve dónde poner el contenido."""
+        import desplazable
+        externo = ttk.Frame(self.nb, style="Panel.TFrame")
+        self.nb.add(externo, text=texto)
+        marco, interior, lienzo = desplazable.crear(externo, bg=self.T["panel"], padding=8)
+        self._tkw(marco, bg="panel")
+        self._tkw(lienzo, bg="panel")
+        marco.pack(fill="both", expand=True)
+        return interior
 
     def _seccion(self, padre, titulo):
         return ttk.LabelFrame(padre, text=f" {titulo} ")
@@ -615,7 +673,8 @@ class App:
                                                   ("acel", "Acelerador", "Cuánto acelera."),
                                                   ("freno", "Freno", "Cuánto frena."))):
             ttk.Label(ped, text=txt, style="Panel.TLabel", width=10).grid(row=i, column=0, sticky="w", pady=2)
-            cv = self._tkw(tk.Canvas(ped, width=250, height=12, highlightthickness=0), bg="campo")
+            cv = self._tkw(tk.Canvas(ped, width=250, height=12, highlightthickness=0),
+                           bg="panel" if clave == "dir" else "campo")
             cv.grid(row=i, column=1, sticky="w", pady=2)
             self._ayuda(cv, ayuda)
             self.can[clave] = cv
@@ -623,7 +682,7 @@ class App:
         ind.grid(row=3, column=0, columnspan=2, sticky="w", pady=(6, 0))
         self.ind = {}
         for k, txt, ayuda in (("lento", "LENTO", "Modo lento activado."),
-                              ("rapido", "RÁPIDO", "Modo rápido (experimental) activado."),
+                              ("rapido", "RÁPIDO", "Modo rápido activado."),
                               ("carril", "CARRIL", "Ayuda de carril: verde = usándola ahora."),
                               ("fuera", "FUERA DE CALLE", "El minimapa muestra al camión fuera de la calle."),
                               ("ruta", "RUTA", "Ve la ruta del GPS en el minimapa.")):
@@ -639,31 +698,114 @@ class App:
         self.lbl_info.grid(row=4, column=0, columnspan=2, sticky="w", pady=(6, 0))
         self._ayuda(self.lbl_info, "Datos técnicos: rumbo hacia la ruta, desvío lateral, curva por delante, "
                                    "control y velocímetro.")
+        # 3.4.0: modos de velocidad (antes en Experimental)
+        modos = ttk.Frame(ped, style="Panel.TFrame")
+        modos.grid(row=6, column=0, columnspan=2, sticky="w", pady=(8, 0))
+        try:
+            import ventanas_extra
+            t = ventanas_extra._leer_teclas()[0]
+        except Exception:  # noqa
+            t = {}
+        self._btns_modos = []
+        for txt, cmd, ayuda in (("Modo lento", "lento", f"Menos velocidad en todo: rectas 60, recta larga 70, curvas "
+                                                       f"−15 % y esquinas −3 km/h. Las reglas mandan igual. Tecla: "
+                                                       f"{t.get('modo_lento', 'PAGEUP')}."),
+                                ("Modo rápido", "rapido", "Más velocidad (recta 90, recta larga 110 y más fácil de "
+                                                          "alcanzar, curvas +15 %, esquinas +5) y curvas más fluidas "
+                                                          "(suelta en vez de frenar, ignora curvas de un instante, "
+                                                          "acelera antes al salir). Las reglas mandan igual. Tecla: "
+                                                          f"{t.get('modo_rapido', 'F10')}.")):
+            b = ttk.Button(modos, text=txt, command=lambda c=cmd: self.orden(c))
+            b.pack(side="left", padx=(0, 6))
+            self._ayuda(b, ayuda)
+            self._btns_modos.append(b)
+            self.btns_ap.append(b)
         self.lbl_teclas = ttk.Label(izq, text="", style="Tenue.TLabel", wraplength=420, justify="left")
         self.lbl_teclas.pack(fill="x", pady=(8, 0))
 
-        # vistas (minimapa y cámara)
+        # vistas (3.4.0): minimapa, cámara y mapa de la ruta; se reparten solas el espacio
         der = self.f_vistas = ttk.Frame(tab, style="Panel.TFrame")
         der.pack(side="left", fill="both", expand=True, padx=(10, 0))
+        barra = ttk.Frame(der, style="Panel.TFrame")
+        barra.pack(fill="x")
+        ttk.Label(barra, text="Mostrar:", style="Panel.TLabel").pack(side="left", padx=(0, 6))
+        self.var_vistas = {}
+        for nombre, titulo, ayuda, _asp in self.VISTAS:
+            var = tk.BooleanVar(value=bool(self.prefs.get("vistas", {}).get(nombre, True)))
+            self.var_vistas[nombre] = var
+            c = ttk.Checkbutton(barra, text=titulo, variable=var, command=self._cambio_vistas)
+            c.pack(side="left", padx=(0, 12))
+            self._ayuda(c, ayuda)
+        self.f_vcuerpo = ttk.Frame(der, style="Panel.TFrame")
+        self.f_vcuerpo.pack(fill="both", expand=True, pady=(6, 0))
+        self.f_vcuerpo.bind("<Configure>", lambda _e: self._acomodar_vistas())
+        self.lbl_sin_vistas = ttk.Label(self.f_vcuerpo, text="Marca arriba qué vistas quieres ver.",
+                                        style="Tenue.TLabel")
+        self.aspecto = {n: a for n, _t, _y, a in self.VISTAS}
         self.slot = {}
-        for nombre, titulo, ayuda in (("minimapa", "Minimapa (depuración)",
-                                       "Lo que ve el programa en el minimapa: ruta, punto que sigue, marcador."),
-                                      ("carril", "Cámara / carril",
-                                       "Vista desde arriba del carril (si la ayuda de carril está calibrada).")):
-            f = self._seccion(der, titulo)
-            f.pack(side="left", fill="both", expand=(nombre == "minimapa"), padx=(0, 6) if nombre == "minimapa"
-                   else 0)
+        for nombre, titulo, ayuda, _asp in self.VISTAS:
+            f = self._seccion(self.f_vcuerpo, titulo)
             cab = ttk.Frame(f, style="Panel.TFrame")
             cab.pack(fill="x")
             b = ttk.Button(cab, text="⧉ Separar", style="Seg.TButton", command=lambda n=nombre: self.separar(n))
             b.pack(side="right")
             self._ayuda(b, "Abre esta vista en una ventana aparte (por ejemplo, para ponerla en otra pantalla). "
                            "Cierra esa ventana para volver a acoplarla.")
-            lbl = self._tkw(tk.Label(f, text="Sin imagen", padx=60 if nombre == "carril" else 100, pady=80),
-                            bg="vista_bg", fg="tenue")
-            lbl.pack(fill="both", expand=True, pady=(4, 0))
-            self._ayuda(lbl, ayuda)
-            self.slot[nombre] = (f, lbl, b)
+            if nombre == "mapa":
+                import mapa_vista
+                self.mapa_mini = mapa_vista.MapaMini(f, self, bg=self.T["vista_bg"], al_doble_clic=self.ir_a_mapa)
+                w = self._tkw(self.mapa_mini.can, bg="vista_bg")
+            else:
+                w = self._tkw(tk.Label(f, text="Sin imagen"), bg="vista_bg", fg="tenue")
+            w.pack(fill="both", expand=True, pady=(4, 0))
+            self._ayuda(w, ayuda)
+            self.slot[nombre] = (f, w, b)
+
+    # 3.4.0: (clave, título, ayuda, ancho/alto de la imagen para repartir el espacio)
+    VISTAS = (("minimapa", "Minimapa", "Lo que ve el programa en el minimapa: ruta, punto que sigue, marcador.", 1.5),
+              ("carril", "Cámara / carril", "Vista desde arriba del carril (si la ayuda de carril está calibrada).",
+               0.62),
+              ("mapa", "Mapa de ruta", "La ruta del tramo actual y el camión. Rueda = zoom (sigue solo al camión "
+                                       "mientras anda). Doble clic = abrir la pestaña «Mapa de ruta» para editar.",
+               1.5))
+
+    def _cambio_vistas(self):
+        self.prefs.setdefault("vistas", {}).update({n: bool(v.get()) for n, v in self.var_vistas.items()})
+        self.guardar_prefs()
+        self._acomodar_vistas()
+
+    def _acomodar_vistas(self):
+        """3.4.0: reparte el espacio entre las vistas marcadas (y no separadas): hasta 3 en una fila, con el ancho
+        según la forma de cada imagen; con 4 o más, 3 arriba y el resto (el mapa al final) abajo."""
+        cuerpo = getattr(self, "f_vcuerpo", None)
+        if cuerpo is None:
+            return
+        W, H = cuerpo.winfo_width(), cuerpo.winfo_height()
+        vis = [n for n, *_r in self.VISTAS if self.var_vistas[n].get() and n not in self.ventanas]
+        for n, (f, _w, _b) in self.slot.items():
+            if n not in vis:
+                f.place_forget()
+        if not vis:
+            self.lbl_sin_vistas.place(relx=0.5, rely=0.4, anchor="center")
+            return
+        self.lbl_sin_vistas.place_forget()
+        if W < 20 or H < 20:
+            return
+        if len(vis) > 3 and "mapa" in vis:                    # el mapa abajo, a lo ancho
+            vis = [n for n in vis if n != "mapa"] + ["mapa"]
+        filas = [vis] if len(vis) <= 3 else [vis[:3], vis[3:]]
+        gap = 8
+        alto = (H - gap * (len(filas) - 1)) / len(filas)
+        y = 0.0
+        for fila in filas:
+            pesos = [max(0.3, float(self.aspecto.get(n, 1.5))) for n in fila]
+            libre = W - gap * (len(fila) - 1)
+            x = 0.0
+            for n, p in zip(fila, pesos):
+                ancho = libre * p / sum(pesos)
+                self.slot[n][0].place(x=int(x), y=int(y), width=int(ancho), height=int(alto))
+                x += ancho + gap
+            y += alto + gap
 
     def _pestana_grabaciones(self):
         tab = ttk.Frame(self.nb, style="Panel.TFrame", padding=8)
@@ -730,8 +872,7 @@ class App:
             self._ayuda(b, ayuda)
 
     def _pestana_calibracion(self):
-        tab = ttk.Frame(self.nb, style="Panel.TFrame", padding=8)
-        self.nb.add(tab, text="  Calibración  ")
+        tab = self._pestana_desplazable("  Calibración  ")
         cal = self._seccion(tab, "Pantalla del juego")
         cal.pack(fill="x")
         items = (("Calibrar todo", lambda: self.calibrar(None),
@@ -786,8 +927,7 @@ class App:
             ventanas_extra.copiar_prompt_llm(self, v[0], v[1].get("recorrido"))
 
     def _pestana_ajustes(self):
-        tab = ttk.Frame(self.nb, style="Panel.TFrame", padding=8)
-        self.nb.add(tab, text="  Ajustes  ")
+        tab = self._pestana_desplazable("  Ajustes  ")
         izq = ttk.Frame(tab, style="Panel.TFrame")
         izq.pack(side="left", fill="both", expand=True)
         der = ttk.Frame(tab, style="Panel.TFrame")
@@ -837,6 +977,25 @@ class App:
         c = ttk.Checkbutton(ap, text="Mostrar ayuda al pasar el mouse", variable=self.var_ayuda,
                             command=self._cambio_ayuda)
         c.grid(row=2, column=0, columnspan=4, sticky="w", pady=(6, 0))
+        self.var_volante = tk.StringVar(value=self.prefs.get("volante", "circulo"))       # 3.5.0
+        ttk.Label(ap, text="Volante:", style="Panel.TLabel").grid(row=3, column=0, sticky="w", pady=(6, 0))
+        for i, (v, t) in enumerate((("circulo", "Círculo"), ("barra", "Barra horizontal"))):
+            r = ttk.Radiobutton(ap, text=t, value=v, variable=self.var_volante, command=self._cambio_volante)
+            r.grid(row=3, column=1 + i, sticky="w", padx=(6, 0), pady=(6, 0))
+            self._ayuda(r, "Cómo se dibuja el volante en Conducir → Mandos.")
+
+        cd = self._seccion(izq, "Conducción")                                             # 3.5.0
+        cd.pack(fill="x", pady=(8, 0))
+        crudo = carpetas.leer_json(CONFIG, {}) if os.path.exists(CONFIG) else {}
+        self.var_exp = getattr(self, "var_exp", {})
+        self.var_exp["usar_grabaciones"] = tk.BooleanVar(
+            value=bool((crudo.get("experimental") or {}).get("usar_grabaciones", True)))
+        c = ttk.Checkbutton(cd, text="Usar grabaciones de teclas", variable=self.var_exp["usar_grabaciones"],
+                            command=lambda: self._cambio_experimental("usar_grabaciones"))
+        c.grid(row=0, column=0, sticky="w")
+        self._ayuda(c, "Apágalo para hacer a mano las entradas, salidas y llegadas que tienen grabación, sin "
+                       "borrar nada: mientras esté apagado ninguna grabación se repite sola. Vale al momento. "
+                       "Una regla también puede apagarlas solo en su zona.")
 
         pf = self._seccion(izq, "Panel flotante (para jugar con una sola pantalla)")
         pf.pack(fill="x", pady=(8, 0))
@@ -881,10 +1040,19 @@ class App:
                  "Consulta ahora en GitHub si hay una versión nueva."),
                 ("Actualizar desde .zip…", lambda: ventana_actualizar.desde_zip(self),
                  "Instala una versión desde un .zip que te pasaron (sin internet). Guarda antes una copia de lo "
-                 "que reemplaza."))):
+                 "que reemplaza."),
+                ("Olvidar números aprendidos", self.olvidar_numeros,
+                 "El programa aprende cómo se ven los números del HUD en tu PC. Si lee mal la distancia seguido "
+                 "(p. ej. 5,09 en vez de 5,69), puede haber aprendido un número mal: esto lo borra y vuelve a "
+                 "aprender desde cero."))):
             b = ttk.Button(info, text=txt, command=cmd)
             b.grid(row=3, column=i, sticky="ew", padx=2, pady=(6, 0))
             self._ayuda(b, ayuda)
+        b = ttk.Button(info, text="Crear Autopiloto.exe…", command=self.crear_lanzador)          # 3.4.0
+        b.grid(row=4, column=0, sticky="ew", padx=2, pady=(6, 0))
+        self._ayuda(b, "Crea Autopiloto.exe en la carpeta del autopiloto: abre el programa igual que "
+                       "Autopiloto.bat pero sin ventana negra, con ícono, y se puede anclar a la barra de tareas. "
+                       "Lo arma el compilador de C# que trae Windows; se hace una sola vez.")
         for i in range(3):
             info.columnconfigure(i, weight=1)
 
@@ -943,11 +1111,13 @@ class App:
          "menos fuerza y frena solo si se pasa más de 10 km/h. Evita el sube y baja de velocidad (19 ↔ 51 km/h en la "
          "curva de Banning, frenadas en la esquina de Maze Bank) que pasa porque el velocímetro del HUD llega 1-2 s "
          "tarde. Si entra muy rápido a alguna esquina, apágala."),
-        ("velocidad_sin_vaiven", "Velocidad sin sube y baja", "3.2.4",
-         "Al pasarse un poco del límite (hasta 8 km/h) baja el acelerador a la mitad del que mantiene la velocidad en "
-         "vez de soltarlo del todo (en GTA soltarlo ya frena ~15 km/h por segundo), se anticipa a si la velocidad "
-         "viene subiendo o bajando y, tras frenar, vuelve enseguida al acelerador de mantener. Evita el vaivén "
-         "24 ↔ 48 km/h con límite 40 (Banning). Si se pasa de velocidad en algún lugar, apágala."),
+        ("velocidad_sin_vaiven", "Velocidad sin sube y baja", "3.2.8",
+         "El camión cargado pierde ~15 km/h por segundo con el acelerador bajo y gana solo ~8 con el máximo, y "
+         "responde ~1 s tarde: al pasarse un poco del límite bajaba el acelerador y caía de 47 a 24 (Banning). "
+         "Ahora, a cualquier velocidad: el acelerador se queda cerca del que mantiene la velocidad (no baja más "
+         "del 10 % por pasarse hasta 8 km/h ni sube a tope estando cerca), aprende más despacio y fuera de "
+         "esquinas y llegadas solo frena si el velocímetro ya marca el exceso. Si se pasa de velocidad en algún "
+         "lugar, apágala."),
         ("trazados_comunes_vuelta", "Trazados comunes en la vuelta", "2.3.2",
          "Los trazados de la vuelta grabados desde 2,3 km (el final, igual para todos los recorridos) se usan en "
          "todos los recorridos, no solo en el que se grabaron."),
@@ -956,22 +1126,14 @@ class App:
          "cuadro. La línea del minimapa a veces se corre de lado un instante sin que el camión se mueva (así chocó "
          "con la barrera a 3,16 km en Mirror Park): con esto casi no mueve el volante por eso. Las curvas no "
          "cambian. Si en autopista lo notas lento para volver a la línea, apágala."),
-        ("usar_grabaciones", "Usar grabaciones de teclas", "2.4.1",
-         "Apágalo para hacer a mano las entradas, salidas y llegadas que tienen grabación, sin borrar nada: "
-         "mientras esté apagado ninguna grabación se repite sola. Vale al momento."),
         ("rumbo_norte", "Rumbo exacto (la N del minimapa)", "2.4.0",
          "Detecta la N que recorre el borde del minimapa y mide cuánto gira el mapa de un cuadro a otro: da hacia "
          "dónde apunta el camión en grados. Se guarda en el viaje (columna rumbo_abs) y con él se arma el mapa de "
          "la ruta. Se aplica al iniciar el programa."),
-        ("mapa_ruta", "Mapa de la ruta", "2.4.0",
-         "Al detener el programa, si el viaje tiene rumbo y el recorrido aún no tiene mapa, se arma solo "
-         "(datos/mapas/). En el mapa se ven las reglas, trazados y grabaciones, se pueden editar, apagar o borrar "
-         "reglas, y se ve el camión en tiempo real."),
     )
 
     def _pestana_experimental(self):
-        tab = ttk.Frame(self.nb, style="Panel.TFrame", padding=8)
-        self.nb.add(tab, text="  Experimental  ")
+        tab = self._pestana_desplazable("  Experimental  ")
         aviso = self._tkw(tk.Label(tab, text="⚠  Funciones en prueba: pueden fallar o cambiar. Si algo sale mal, "
                                              "apágalas aquí. Los cambios se aplican al momento.",
                                    anchor="w", justify="left", padx=10, pady=6, font=("Segoe UI", 9, "bold")),
@@ -981,7 +1143,7 @@ class App:
         caja.pack(fill="x", pady=(8, 0))
         crudo = carpetas.leer_json(CONFIG, {}) if os.path.exists(CONFIG) else {}
         actual = dict(configuracion.DEFAULTS.get("experimental", {}), **(crudo.get("experimental") or {}))
-        self.var_exp = {}
+        self.var_exp = getattr(self, "var_exp", {})
         for i, (clave, nombre, desde, ayuda) in enumerate(self.EXPERIMENTAL):
             var = tk.BooleanVar(value=bool(actual.get(clave, True)))
             self.var_exp[clave] = var
@@ -990,47 +1152,14 @@ class App:
             self._ayuda(c, ayuda)
             ttk.Label(caja, text=f"en prueba desde {desde}", style="Tenue.TLabel").grid(row=i, column=1, sticky="w",
                                                                                      padx=(12, 0))
-        b = ttk.Button(tab, text="Abrir mapa de la ruta…", style="Acento.TButton", command=self.abrir_mapa)
-        b.pack(anchor="w", pady=(10, 0))
-        self._ayuda(b, "Ventana con el recorrido dibujado, sus reglas (editar, apagar, borrar), trazados, grabaciones "
-                       "y el camión en tiempo real.")
-        self._seccion_modos(tab)
-        self._seccion_compartidos(tab)
         ttk.Label(tab, text="Cuando una función ya está probada y funciona bien, pasa a ser fija en una versión "
                             "siguiente y sale de esta pestaña.", style="Tenue.TLabel", wraplength=700,
                   justify="left").pack(anchor="w", pady=(10, 0))
 
-    # ------------------------------------------------------------ modos lento / rápido (2.6.0)
-    def _seccion_modos(self, tab):
-        caja = self._seccion(tab, "Modos de velocidad")
-        caja.pack(fill="x", pady=(10, 0))
-        ttk.Label(caja, text="Se prenden y apagan mientras manejas, con el botón o con su tecla (Ajustes → Cambiar "
-                             "teclas → Experimental). Uno apaga al otro. Las reglas de cada lugar mandan igual.",
-                  style="Tenue.TLabel", wraplength=760, justify="left").pack(anchor="w")
-        fila = ttk.Frame(caja)
-        fila.pack(fill="x", pady=(4, 0))
-        try:
-            import ventanas_extra
-            t = ventanas_extra._leer_teclas()[0]
-        except Exception:  # noqa
-            t = {}
-        for txt, cmd, ayuda in (("Modo lento", "lento", f"Limita la velocidad a 15 km/h un rato (se apaga solo a los "
-                                                       f"90 s). Tecla: {t.get('modo_lento', 'PAGEUP')}."),
-                                ("Modo rápido", "rapido", "Más velocidad (recta 90, recta larga 110 y más fácil de "
-                                                          "alcanzar, curvas +15 %, esquinas +5) y curvas más fluidas "
-                                                          "(suelta en vez de frenar, ignora curvas de un instante, "
-                                                          "acelera antes al salir). Puede chocar más. Tecla: "
-                                                          f"{t.get('modo_rapido', 'F10')}.")):
-            b = ttk.Button(fila, text=txt, command=lambda c=cmd: self.orden(c))
-            b.pack(side="left", padx=(0, 6))
-            self._ayuda(b, ayuda)
-            self._btns_modos = getattr(self, "_btns_modos", []) + [b]
-            self.btns_ap.append(b)
-
     # ------------------------------------------------------------ tramos compartidos (2.5.0)
     def _seccion_compartidos(self, tab):
         caja = self._seccion(tab, "Tramos compartidos entre recorridos")
-        caja.pack(fill="both", expand=True, pady=(10, 0))
+        caja.pack(fill="both", expand=True, pady=(4, 0))
         ttk.Label(caja, text="Partes donde dos recorridos van por las mismas calles (se encuentran solas comparando "
                              "el rumbo de los viajes). En un tramo CONFIRMADO, las reglas de un recorrido valen "
                              "también para el otro. Los nuevos quedan pendientes hasta que los confirmes.",
@@ -1133,12 +1262,62 @@ class App:
         print(f"[OK] Perfil guardado: {', '.join(rec for rec, _t in hechos)}.")
         self._buscar_comp()
 
-    def abrir_mapa(self):
+    def _crear_editor_mapa(self):
+        """3.4.0: el editor del mapa vive en la pestaña «Mapa de ruta»; se arma la primera vez que se abre."""
+        if getattr(self, "ventana_mapa", None) is not None:
+            return self.ventana_mapa
         import ventana_mapa
+        for w in self.tab_mapa.winfo_children():
+            w.destroy()
+        # 3.5.0: abajo, plegable, «Tramos compartidos entre recorridos» (antes en Experimental)
+        barra = ttk.Frame(self.tab_mapa, style="Panel.TFrame")
+        barra.pack(side="bottom", fill="x")
+        f_comp = ttk.Frame(self.tab_mapa, style="Panel.TFrame", padding=(6, 0, 6, 6))
+        self.var_ver_comp = tk.BooleanVar(value=bool(self.prefs.get("ver_compartidos", False)))
+
+        def plegar():
+            if self.var_ver_comp.get():
+                f_comp.pack(side="bottom", fill="x", before=barra)
+            else:
+                f_comp.pack_forget()
+            self.prefs["ver_compartidos"] = bool(self.var_ver_comp.get())
+            self.guardar_prefs()
+        c = ttk.Checkbutton(barra, text="Ver tramos compartidos entre recorridos", variable=self.var_ver_comp,
+                            command=plegar)
+        c.pack(side="left", padx=6, pady=2)
+        self._ayuda(c, "Partes donde dos recorridos van por las mismas calles: en un tramo confirmado, las reglas "
+                       "de uno valen también para el otro.")
+        self._seccion_compartidos(f_comp)
+        f_ed = ttk.Frame(self.tab_mapa)
+        f_ed.pack(side="top", fill="both", expand=True)
+        if self.var_ver_comp.get():
+            f_comp.pack(side="bottom", fill="x", before=barra)
         try:
-            ventana_mapa.abrir(self)
+            self.ventana_mapa = ventana_mapa.VentanaMapa(self, contenedor=f_ed)
         except Exception as e:  # noqa
-            messagebox.showerror("Mapa de la ruta", f"No se pudo abrir el mapa:\n{e}", parent=self.root)
+            self.ventana_mapa = None
+            ttk.Label(f_ed, text=f"No se pudo abrir el mapa:\n{e}", style="Tenue.TLabel").pack(pady=20)
+            print(f"[!] Mapa de ruta: {e}")
+        return self.ventana_mapa
+
+    def ir_a_mapa(self, rec=None, tramo=None):
+        """Doble clic en el mapa de Conducir: abre la pestaña «Mapa de ruta» en ese recorrido y tramo."""
+        self.nb.select(self.tab_mapa)
+        v = self._crear_editor_mapa()
+        if v is None:
+            return
+        try:
+            v.ir_a(rec, tramo)
+        except Exception as e:  # noqa
+            print(f"[i] Mapa de ruta: {e}")
+
+    def abrir_mapa(self):
+        self.ir_a_mapa()
+
+    def _cambio_volante(self):
+        self.prefs["volante"] = self.var_volante.get()
+        self.guardar_prefs()
+        self._pintar_barras(0, 0, 0)
 
     def _cambio_experimental(self, clave):
         val = bool(self.var_exp[clave].get())
@@ -1183,14 +1362,19 @@ class App:
         if self._avisos_claves:
             self.f_avisos.pack(fill="x", pady=(8, 0))
         self.f_diario.pack(fill="x", pady=(8, 0))
+        separada = getattr(self, "win_consola", None) is not None          # 3.4.1: consola en ventana aparte
+        if hasattr(self, "btn_consola"):
+            self.btn_consola.configure(style="SegOn.TButton" if separada else "Seg.TButton")
         if vista == "mini":
             self.f_diario_opc.pack_forget()
-            self.f_reg.pack(fill="both", expand=True, pady=(8, 0))
+            if not separada:
+                self.f_reg.pack(fill="both", expand=True, pady=(8, 0))
             self.txt_log.configure(height=6)
         else:
             self.f_diario_opc.pack(fill="x", pady=(5, 0))
             self.nb.pack(fill="both", expand=True, pady=(8, 0))
-            self.f_reg.pack(fill="both", expand=False, pady=(8, 0))
+            if not separada:
+                self.f_reg.pack(fill="both", expand=False, pady=(8, 0))
             self.txt_log.configure(height=9 if vista == "completa" else 7)
         if vista == "completa":
             self.f_vistas.pack(side="left", fill="both", expand=True, padx=(10, 0))
@@ -1205,27 +1389,32 @@ class App:
             self.guardar_prefs()
 
     def separar(self, nombre):
-        """Abre la vista (minimapa o cámara) en una ventana aparte."""
+        """Abre la vista (minimapa, cámara o mapa) en una ventana aparte."""
         if nombre in self.ventanas:
             self.ventanas[nombre][0].lift()
             return
+        titulos = {n: t for n, t, *_r in self.VISTAS}
         win = tk.Toplevel(self.root)
-        win.title("Minimapa (depuración)" if nombre == "minimapa" else "Cámara / carril")
+        win.title(titulos.get(nombre, nombre))
         win.configure(bg=self.T["bg"])
-        geo = self.prefs["geometria"].get("ventana_" + nombre) or ("420x420" if nombre == "minimapa" else "300x420")
+        geo = self.prefs["geometria"].get("ventana_" + nombre) or {"carril": "300x420"}.get(nombre, "420x420")
         try:
             win.geometry(geo)
         except tk.TclError:
             pass
-        lbl = tk.Label(win, text="Sin imagen", bg=self.T["vista_bg"], fg=self.T["tenue"])
-        lbl.pack(fill="both", expand=True)
+        if nombre == "mapa":
+            import mapa_vista
+            mini = mapa_vista.MapaMini(win, self, bg=self.T["vista_bg"], al_doble_clic=self.ir_a_mapa)
+            mini.can.pack(fill="both", expand=True)
+            destino = mini
+        else:
+            destino = tk.Label(win, text="Sin imagen", bg=self.T["vista_bg"], fg=self.T["tenue"])
+            destino.pack(fill="both", expand=True)
         win.protocol("WM_DELETE_WINDOW", lambda: self.acoplar(nombre))
-        self.ventanas[nombre] = (win, lbl)
-        f, lbl_slot, b = self.slot[nombre]
-        lbl_slot.configure(image="", text="En ventana aparte.\nCiérrala para volver a acoplarla.")
-        b.configure(text="⧉ Acoplar", command=lambda: self.acoplar(nombre))
+        self.ventanas[nombre] = (win, destino)
         self.prefs["separadas"][nombre] = True
         self.guardar_prefs()
+        self._acomodar_vistas()
 
     def acoplar(self, nombre):
         if nombre not in self.ventanas:
@@ -1233,18 +1422,24 @@ class App:
         win, _ = self.ventanas.pop(nombre)
         self.prefs["geometria"]["ventana_" + nombre] = win.geometry()
         win.destroy()
-        f, lbl_slot, b = self.slot[nombre]
-        lbl_slot.configure(text="Sin imagen")
-        b.configure(text="⧉ Separar", command=lambda: self.separar(nombre))
+        lbl = self.slot[nombre][1]
+        if nombre != "mapa":
+            lbl.configure(image="", text="Sin imagen")
         self.prefs["separadas"][nombre] = False
         self.guardar_prefs()
+        self._acomodar_vistas()
 
     def _destino_imagen(self, nombre):
-        """Label donde dibujar la vista, o None si no se ve (para no gastar CPU)."""
+        """Label (o mapa) donde dibujar la vista, o None si no se ve (para no gastar CPU)."""
         if nombre in self.ventanas:
             return self.ventanas[nombre][1]
-        if self._vista == "completa":
-            return self.slot[nombre][1]
+        if self._vista == "completa" and self.var_vistas[nombre].get():
+            try:
+                if self.nb.select() != str(self.tab_conducir):
+                    return None
+            except tk.TclError:
+                pass
+            return self.mapa_mini if nombre == "mapa" else self.slot[nombre][1]
         return None
 
     def _cambio_pestana(self, _e=None):
@@ -1252,7 +1447,9 @@ class App:
             actual = self.nb.select()
         except tk.TclError:
             return
-        if actual == str(self.tab_grab):
+        if actual == str(self.tab_mapa):
+            self._crear_editor_mapa()
+        elif actual == str(self.tab_grab):
             self.cargar_lista_grab()
         elif actual == str(self.tab_viajes):
             self.cargar_lista_viajes()
@@ -1568,6 +1765,7 @@ class App:
             t = cfg["teclas"]
             self.lbl_teclas.config(text=(
                 f"En el juego: {t['activar']} activar · {t['modo_lento']} modo lento · "
+                f"{t.get('modo_rapido', 'F10')} modo rápido · "
                 f"{t.get('carril', 'DELETE')} carril · {t['saltar_etapa']} saltar etapa · {t['salir']} detener · "
                 f"{'/'.join(t['tomar_control'])} tomar el control · {t.get('hito', 'F9')} marcar hito"))
             self.lbl_control.config(text="Mando" if cfg["control"].get("backend") == "mando" else "Teclado")
@@ -1615,12 +1813,200 @@ class App:
                 tag = "ok"
             elif l.startswith("[REC]") or ("->" in l and l.startswith("[")):
                 tag = "cambio"
-            if tag:
-                self.txt_log.insert("end", linea, tag)
+            for t in self._consolas():
+                if tag:
+                    t.insert("end", linea, tag)
+                else:
+                    t.insert("end", linea)
+        for t in self._consolas():
+            if int(t.index("end-1c").split(".")[0]) > 3000:
+                t.delete("1.0", "1000.0")
+            t.see("end")
+
+    # ------------------------------------------------------------ reglas desde las observaciones (3.4.2)
+    def _obs_regla(self, caja, p):
+        """Botón «+ Regla aquí» y, al pulsarlo, los campos de la regla (desde, hasta, qué hace)."""
+        m = float(p.get("metros") or 0)
+        r = {"on": tk.BooleanVar(value=False), "desde": tk.StringVar(value=str(int(round(m + 60)))),
+             "hasta": tk.StringVar(value=str(int(max(0, round(m - 60))))),
+             "vel": tk.BooleanVar(value=False), "kmh": tk.StringVar(value="40"),
+             "lado": tk.BooleanVar(value=False), "px": tk.DoubleVar(value=0.0),
+             "esquina": tk.BooleanVar(value=False), "esq_kmh": tk.StringVar(value="25"),
+             "sin_freno": tk.BooleanVar(value=False), "entregar": tk.BooleanVar(value=False),
+             "avance": tk.DoubleVar(value=0.0)}                                   # 3.5.0
+        cuerpo = ttk.Frame(caja)
+        btn = ttk.Button(caja, text="+ Regla aquí", style="Seg.TButton")
+        btn.pack(anchor="w", pady=(4, 0))
+        self._ayuda(btn, "Crea una regla en este lugar al guardar las observaciones. En el Mapa de ruta se ve en "
+                         "verde hasta que la cambies. La nota de la regla son tus indicaciones.")
+
+        def alternar():
+            r["on"].set(not r["on"].get())
+            if r["on"].get():
+                cuerpo.pack(fill="x", pady=(2, 0))
+                btn.configure(text="✕ Sin regla")
             else:
-                self.txt_log.insert("end", linea)
-        if int(self.txt_log.index("end-1c").split(".")[0]) > 3000:
-            self.txt_log.delete("1.0", "1000.0")
+                cuerpo.pack_forget()
+                btn.configure(text="+ Regla aquí")
+        btn.configure(command=alternar)
+        f1 = ttk.Frame(cuerpo)
+        f1.pack(fill="x")
+        for k, t in (("desde", "Desde (m):"), ("hasta", "Hasta (m):")):
+            ttk.Label(f1, text=t).pack(side="left")
+            ttk.Entry(f1, textvariable=r[k], width=7).pack(side="left", padx=(2, 10))
+        ttk.Label(f1, text=f"(el punto está en {_km(m)}; la distancia baja hacia el destino)",
+                  style="Tenue.TLabel").pack(side="left")
+        f2 = ttk.Frame(cuerpo)
+        f2.pack(fill="x", pady=(2, 0))
+        ttk.Checkbutton(f2, text="Bajar velocidad a", variable=r["vel"]).pack(side="left")
+        ttk.Entry(f2, textvariable=r["kmh"], width=4).pack(side="left", padx=(2, 2))
+        ttk.Label(f2, text="km/h").pack(side="left", padx=(0, 12))
+        ttk.Checkbutton(f2, text="Esquina a", variable=r["esquina"]).pack(side="left")
+        ttk.Entry(f2, textvariable=r["esq_kmh"], width=4).pack(side="left", padx=(2, 2))
+        ttk.Label(f2, text="km/h").pack(side="left", padx=(0, 12))
+        ttk.Checkbutton(f2, text="No frenar", variable=r["sin_freno"]).pack(side="left", padx=(0, 12))
+        ttk.Checkbutton(f2, text="Entregar el control", variable=r["entregar"]).pack(side="left")
+        f3 = ttk.Frame(cuerpo)
+        f3.pack(fill="x", pady=(2, 0))
+        ttk.Checkbutton(f3, text="Ir más a un lado:", variable=r["lado"]).pack(side="left")
+        ttk.Label(f3, text="izquierda").pack(side="left", padx=(6, 2))
+        lbl = ttk.Label(f3, text="0,0 px", width=8)
+
+        def mover(_v=None):
+            v = round(float(r["px"].get()) * 2) / 2
+            r["px"].set(v)
+            lbl.configure(text=(f"{abs(v):.1f} px " + ("izq." if v < 0 else "der." if v > 0 else "")).replace(".", ",", 1))
+            if v != 0:
+                r["lado"].set(True)
+        ttk.Scale(f3, from_=-6, to=6, variable=r["px"], command=mover, length=220).pack(side="left")
+        ttk.Label(f3, text="derecha").pack(side="left", padx=(2, 6))
+        lbl.pack(side="left")
+        # 3.5.0: esquinas: avanzar antes de girar (relativo al normal)
+        f4 = ttk.Frame(cuerpo)
+        f4.pack(fill="x", pady=(2, 0))
+        ttk.Label(f4, text="Esquina, avanzar antes de girar:").pack(side="left")
+        ttk.Label(f4, text="girar antes").pack(side="left", padx=(6, 2))
+        lbl2 = ttk.Label(f4, text="normal", width=10)
+
+        def mover2(_v=None):
+            v = round(float(r["avance"].get()) * 2) / 2
+            r["avance"].set(v)
+            lbl2.configure(text="normal" if v == 0 else (f"{abs(v):g} px " + ("más" if v > 0 else "menos"))
+                           .replace(".", ","))
+        ttk.Scale(f4, from_=-5, to=5, variable=r["avance"], command=mover2, length=180).pack(side="left")
+        ttk.Label(f4, text="avanzar más").pack(side="left", padx=(2, 6))
+        lbl2.pack(side="left")
+        return r
+
+    def _obs_regla_dict(self, r, p, indicaciones):
+        def num(k):
+            return float(str(r[k].get()).replace(",", "."))
+        desde, hasta = num("desde"), num("hasta")
+        if desde <= hasta:
+            raise ValueError("«Desde» tiene que ser mayor que «Hasta» (la distancia al punto va bajando).")
+        quien = f"hito {p['hito']}" if p.get("hito") else (p.get("que") or "punto")
+        nota = indicaciones or f"Desde observaciones ({limpiar_texto(quien)})"
+        out = {"desde": int(round(desde)), "hasta": int(round(hasta)), "nota": nota}
+        if r["vel"].get():
+            out["max_kmh"] = int(round(num("kmh")))
+        if r["lado"].get() and float(r["px"].get()) != 0:
+            out["desplazamiento_px"] = float(r["px"].get())
+        if r["esquina"].get():
+            out["esquina_kmh"] = int(round(num("esq_kmh")))
+        if float(r["avance"].get() or 0) != 0:
+            out["avance_esquina_px"] = float(r["avance"].get())
+        if r["sin_freno"].get():
+            out["sin_freno"] = True
+        if r["entregar"].get():
+            out["entregar_control"] = True
+        return out
+
+    def _guardar_reglas_obs(self, recorrido, nuevas):
+        import ventana_mapa
+        try:
+            n = ventana_mapa.agregar_reglas_observaciones(recorrido, nuevas)
+        except Exception as e:  # noqa
+            print(f"[!] No se pudieron guardar las reglas de las observaciones: {e}")
+            return
+        if not n:
+            return
+        print(f"[OK] {n} regla(s) nueva(s) desde las observaciones: se ven en verde en el Mapa de ruta.")
+        if self.ap is not None:
+            self.orden("recargar_rutas")
+        v = getattr(self, "ventana_mapa", None)
+        if v is not None:
+            try:
+                v.recargar()
+            except Exception:  # noqa
+                pass
+
+    def _consolas(self):
+        out = [self.txt_log]
+        if getattr(self, "win_consola", None) is not None:
+            out.append(self.win_consola[1])
+        return out
+
+    # ------------------------------------------------------------ consola en ventana aparte (3.4.1)
+    def alternar_consola(self):
+        if getattr(self, "win_consola", None) is not None:
+            self.acoplar_consola()
+        else:
+            self.separar_consola()
+
+    def separar_consola(self):
+        if getattr(self, "win_consola", None) is not None:
+            self.win_consola[0].lift()
+            return
+        T = self.T
+        win = tk.Toplevel(self.root)
+        win.title("Autopiloto · consola")
+        win.configure(bg=T["panel"])
+        try:
+            win.geometry(self.prefs["geometria"].get("ventana_consola") or "760x420")
+        except tk.TclError:
+            pass
+        barra = tk.Frame(win, bg=T["panel"], padx=6, pady=4)
+        barra.pack(fill="x")
+        tk.Label(barra, text="Registro", font=("Segoe UI", 9, "bold"), bg=T["panel"], fg=T["texto2"]).pack(
+            side="left")
+        cuerpo = tk.Frame(win, bg=T["panel"], padx=6)
+        cuerpo.pack(fill="both", expand=True, pady=(0, 6))
+        txt = tk.Text(cuerpo, font=("Consolas", 10), wrap="word", relief="flat", borderwidth=0, padx=6, pady=4,
+                      bg=T["log_bg"], fg=T["log_fg"], insertbackground=T["texto"])
+        sb = ttk.Scrollbar(cuerpo, command=txt.yview)
+        txt.configure(yscrollcommand=sb.set)
+        sb.pack(side="right", fill="y")
+        txt.pack(fill="both", expand=True)
+        for tag in ("error", "aviso", "info", "ok", "cambio"):
+            txt.tag_configure(tag, foreground=T[tag])
+        # copiar lo que ya había, con sus colores
+        for clave, valor, _i in self.txt_log.dump("1.0", "end-1c", text=True, tag=True):
+            if clave == "text":
+                txt.insert("end", valor, tuple(t for t in self.txt_log.tag_names(_i) if t != "sel"))
+        txt.see("end")
+        ttk.Button(barra, text="Volver abajo", style="Seg.TButton", command=self.acoplar_consola).pack(side="right")
+        ttk.Button(barra, text="Limpiar", style="Seg.TButton",
+                   command=lambda: [t.delete("1.0", "end") for t in self._consolas()]).pack(side="right", padx=4)
+        ttk.Button(barra, text="Copiar todo", style="Seg.TButton", command=self.copiar_log).pack(side="right")
+        win.protocol("WM_DELETE_WINDOW", self.acoplar_consola)
+        self.win_consola = (win, txt)
+        self.prefs["consola_separada"] = True
+        self.guardar_prefs()
+        self.poner_vista(self._vista, guardar=False)
+
+    def acoplar_consola(self):
+        if getattr(self, "win_consola", None) is None:
+            return
+        win, _t = self.win_consola
+        self.win_consola = None
+        try:
+            self.prefs["geometria"]["ventana_consola"] = win.geometry()
+            win.destroy()
+        except tk.TclError:
+            pass
+        self.prefs["consola_separada"] = False
+        self.guardar_prefs()
+        self.poner_vista(self._vista, guardar=False)
         self.txt_log.see("end")
 
     def copiar_log(self):
@@ -1628,11 +2014,14 @@ class App:
         self.root.clipboard_append(self.txt_log.get("1.0", "end"))
 
     def _mostrar_imagen(self, label, img_bgr, clave):
-        max_w = max(160, label.winfo_width() - 8)
-        max_h = max(140, label.winfo_height() - 8)
-        if clave == "carril" and clave not in self.ventanas:
-            max_w = min(max_w, 260)                 # acoplada: columna angosta
+        max_w = max(60, label.winfo_width() - 8)
+        max_h = max(60, label.winfo_height() - 8)
         h, w = img_bgr.shape[:2]
+        if h > 0 and clave not in self.ventanas:            # 3.4.0: la forma real de la imagen reparte el espacio
+            asp = w / h
+            if abs(asp - self.aspecto.get(clave, asp)) > 0.08 * asp:
+                self.aspecto[clave] = asp
+                self._acomodar_vistas()
         esc = min(max_w / w, max_h / h, 3.0)
         if esc <= 0:
             return
@@ -1669,11 +2058,33 @@ class App:
         if not hasattr(self, "can"):
             return
         T = self.T
+        circulo = self.prefs.get("volante", "circulo") == "circulo"
         for clave, valor, color in (("dir", d, T["azul"]), ("acel", a, T["verde"]), ("freno", f, T["rojo"])):
             c = self.can[clave]
             c.delete("all")
             w, h = 250, 12
+            if clave == "dir" and circulo:                # 3.5.0: volante redondo que gira
+                v = max(-1.0, min(1.0, float(valor)))
+                if int(float(c.cget("height"))) != 64:
+                    c.configure(height=64)
+                cx, cy, R = 34, 32, 28
+                ang = math.radians(v * 135)               # tope del volante = 135° hacia cada lado
+                c.create_oval(cx - R, cy - R, cx + R, cy + R, outline=T["texto2"], width=5)
+                for base in (-90, 30, 150):               # tres rayos
+                    a_ = math.radians(base) + ang
+                    c.create_line(cx, cy, cx + (R - 2) * math.cos(a_), cy + (R - 2) * math.sin(a_),
+                                  fill=T["texto2"], width=3)
+                c.create_oval(cx - 6, cy - 6, cx + 6, cy + 6, fill=T["texto2"], outline="")
+                a_ = math.radians(-90) + ang              # marca arriba (como la del volante real)
+                c.create_oval(cx + R * math.cos(a_) - 5, cy + R * math.sin(a_) - 5,
+                              cx + R * math.cos(a_) + 5, cy + R * math.sin(a_) + 5, fill=color, outline="")
+                lado = "recto" if abs(v) < 0.03 else ("izquierda" if v < 0 else "derecha")
+                c.create_text(78, cy, anchor="w", fill=T["texto"], font=("Segoe UI", 10, "bold"),
+                              text=f"{abs(v) * 100:.0f} % {lado}")
+                continue
             if clave == "dir":
+                if int(float(c.cget("height"))) != 12:
+                    c.configure(height=12)
                 c.create_line(w / 2, 0, w / 2, h, fill=T["tenue"])
                 x = w / 2 + max(-1.0, min(1.0, float(valor))) * w / 2
                 c.create_rectangle(min(w / 2, x), 2, max(w / 2, x), h - 2, fill=color, width=0)
@@ -1697,6 +2108,17 @@ class App:
                 lbl = self._destino_imagen(nombre)
                 if lbl is not None and imgs.get(clave) is not None:
                     self._mostrar_imagen(lbl, imgs[clave], nombre)
+        ahora = time.time()
+        if ahora - getattr(self, "_t_mapa_mini", 0.0) >= 0.25:       # 3.4.0: mapa de la ruta en Conducir
+            self._t_mapa_mini = ahora
+            mini = self._destino_imagen("mapa")
+            if mini is not None:
+                try:
+                    mini.actualizar()
+                except Exception as e:  # noqa
+                    if not getattr(self, "_aviso_mapa_mini", False):
+                        self._aviso_mapa_mini = True
+                        print(f"[i] Mapa (Conducir): {e}")
         self._botones()
         self._vigilar_panel(self.hilo is not None and self.hilo.is_alive())
         for _ in range(6):
@@ -1870,8 +2292,9 @@ class App:
         ttk.Label(fila_u, text="Usuario:").pack(side="left")
         var_u = tk.StringVar(value=self.var_usuario.get())
         ttk.Entry(fila_u, textvariable=var_u, width=30).pack(side="left", padx=4)
-        ttk.Label(cab, text="Puntos críticos (lo que vio el programa y la causa probable). "
-                            "Escribe qué pasó de verdad si lo sabes:", wraplength=780).pack(anchor="w", pady=(6, 0))
+        ttk.Label(cab, text="Puntos críticos (lo que vio el programa y la causa probable). Escribe tus "
+                            "indicaciones (qué debería hacer ahí) y, si quieres, crea una regla en ese lugar con "
+                            "«+ Regla aquí» (se ve en verde en el Mapa de ruta):", wraplength=780).pack(anchor="w", pady=(6, 0))
         ttk.Label(cab, text="Ayuda mucho anotar: qué tocó o qué hizo mal (barrera, poste, cartel, auto, giró "
                             "antes/tarde…), de qué lado, desde dónde empezó (unos metros antes del hito, en la curva…) "
                             "y si fue por tráfico u otro jugador.", style="Tenue.TLabel",
@@ -1921,9 +2344,10 @@ class App:
                 sel[clave] = sv
             fila = ttk.Frame(caja)
             fila.pack(fill="x", pady=(3, 0))
-            ttk.Label(fila, text="¿Por qué lo marcaste?" if p.get("hito") else "Tu observación:").pack(side="left")
+            ttk.Label(fila, text="Indicaciones:").pack(side="left")                       # 3.4.2
             ttk.Entry(fila, textvariable=v).pack(side="left", fill="x", expand=True, padx=4)
-            entradas.append((p, v, sel))
+            regla = self._obs_regla(caja, p)                                              # 3.4.2
+            entradas.append((p, v, sel, regla))
         ttk.Label(win, text="Observación general:", padding=(8, 4, 8, 0)).pack(anchor="w")
         txt = tk.Text(win, height=4, wrap="word", bg=self.T["campo"], fg=self.T["texto"],
                       insertbackground=self.T["texto"], relief="flat", highlightthickness=1,
@@ -1944,7 +2368,15 @@ class App:
                       f"# usuario: {limpio(usuario) or '(sin nombre)'}\n",
                       f"# recorrido: {limpio(datos.get('recorrido') or '-')}\n"]
             n_punto = 0
-            for p, v, sel in entradas:
+            nuevas = []                              # 3.4.2: reglas creadas aquí
+            for p, v, sel, regla in entradas:
+                if regla["on"].get():
+                    try:
+                        nuevas.append((p["tramo"], self._obs_regla_dict(regla, p, limpio(v.get()))))
+                    except ValueError as e:
+                        messagebox.showerror("Observaciones", f"Revisa la regla del punto en "
+                                             f"{_km(p.get('metros'))}: {e}", parent=win)
+                        return
                 lugar = " / ".join(x for x in (p.get("zona"), p.get("calle")) if x) or "-"
                 dist = _km(p.get("metros"))
                 caps = " | capturas: " + ", ".join(p["_guardadas"]) if p.get("_guardadas") else ""
@@ -1955,13 +2387,13 @@ class App:
                         lineas.append(f"# hito {p['hito']}: t={p['t']:.1f} s | tramo {p['tramo']} | {dist} | "
                                       f"{limpio(lugar)} | {p.get('kmh', 0)} km/h | estado {p.get('estado', '-')} | "
                                       f"regla: {limpio(p.get('regla') or '-')} | {rapidas}"
-                                      f"observación: {limpio(v.get()) or '-'}{caps}\n")
+                                      f"indicaciones: {limpio(v.get()) or '-'}{caps}\n")
                     continue
                 n_punto += 1
                 i = n_punto
                 lineas.append(f"# punto {i}: t={p['t']:.1f} s | tramo {p['tramo']} | {dist} | {limpio(lugar)} | "
                               f"{p.get('kmh', 0)} km/h | {limpio(p['que'])} | causa probable: {limpio(p.get('causa', ''))} | "
-                              f"{rapidas}observación: {limpio(v.get()) or '-'}{caps}\n")
+                              f"{rapidas}indicaciones: {limpio(v.get()) or '-'}{caps}\n")
             gen = limpio(txt.get("1.0", "end"))
             lineas.append(f"# observación general: {gen or '-'}\n")
             ap = datos.get("ap")
@@ -1975,6 +2407,8 @@ class App:
                     print(f"[!] No se pudieron guardar las observaciones: {e}")
                     return
             print(f"[OK] Observaciones guardadas en {datos['archivo']}")
+            if nuevas:
+                self._guardar_reglas_obs(datos.get("recorrido"), nuevas)
             self.notificar("reporte", "Reporte guardado", os.path.basename(datos["archivo"]))
             cerrar_win()
 
@@ -2135,6 +2569,19 @@ class App:
                 return
             g["nombre"] = nombre
             tipo = var_d.get()
+            # 3.5.0: mismo nombre que una antigua -> preguntar si se reemplaza
+            import grabaciones as _gm
+            g.pop("_reemplazar", None)
+            if _gm.existe(nombre, trazado=(tipo == "trazado")):
+                r = messagebox.askyesnocancel(
+                    "Grabación", f"Ya hay {'un trazado' if tipo == 'trazado' else 'una grabación'} llamado "
+                    f"«{nombre}».\n\n¿Reemplazar el antiguo por este?\n\nSí = reemplazar (se guarda una copia "
+                    "del antiguo en mi_equipo/respaldos/grabaciones)\nNo = guardar los dos (este queda con «_2»)\n"
+                    "Cancelar = volver a cambiar el nombre", parent=win)
+                if r is None:
+                    return
+                if r:
+                    g["_reemplazar"] = True
             if tipo == "trazado":
                 g["tramo"] = int(var_tr.get())
                 if var_todos.get():
@@ -2145,7 +2592,8 @@ class App:
                     else:
                         import grabaciones
                         t = grabaciones.construir_trazado(g)
-                        ok = t is not None and bool(grabaciones.guardar_trazado(dict(t, nombre=nombre)))
+                        ok = t is not None and bool(grabaciones.guardar_trazado(
+                            dict(t, nombre=nombre, _reemplazar=g.get("_reemplazar"))))
                 except Exception as e:  # noqa
                     messagebox.showerror("Trazado", f"No se pudo guardar: {e}", parent=win)
                     return
@@ -2392,6 +2840,8 @@ class App:
             self.prefs["geometria"][self._vista] = self.root.geometry()
             for nombre, (win, _l) in self.ventanas.items():
                 self.prefs["geometria"]["ventana_" + nombre] = win.geometry()
+            if getattr(self, "win_consola", None) is not None:
+                self.prefs["geometria"]["ventana_consola"] = self.win_consola[0].geometry()
             self.guardar_prefs()
         except Exception:  # noqa
             pass

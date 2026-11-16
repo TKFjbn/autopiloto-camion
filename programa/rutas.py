@@ -21,7 +21,15 @@ Cada ruta se reconoce por la DISTANCIA INICIAL que muestra el minimapa justo des
   anticipacion       0.4-1.5: <1 = mira más cerca y gira más tarde en curvas
   activa             false: la regla queda en el archivo pero no se aplica (2.4.0, desde el mapa de la ruta)
   solo_esta_ruta     true: aunque esté en un tramo compartido, no se copia a los otros recorridos (2.5.0)
-  solo_rapido        true: solo se aplica con el modo rápido (experimental) prendido (2.7.0)
+  solo_rapido        true: solo se aplica con el modo rápido prendido (2.7.0)
+  (3.5.0)
+  solo_lento         true: solo se aplica con el modo lento prendido
+  modo               "lento" / "rapido" / "normal": en la zona de la regla conduce con ese modo de velocidad
+  avance_esquina_px  esquinas: px que avanza de más antes de girar (+ = gira después, − = gira antes; relativo al
+                     normal). giro_tardio_px (valor fijo) manda si está.
+  exp                {"velocidad_sin_vaiven": false, ...}: prende o apaga funciones experimentales en la zona
+  general            true: vale en TODO el tramo de este recorrido (sin desde/hasta). Una regla de un lugar manda
+                     sobre la general en lo que pida; lo demás de la general sigue valiendo.
 
 Tramos compartidos (2.5.0, datos/compartidos.json): si dos recorridos van por las mismas calles, las reglas de
 uno que caen en ese tramo valen también para el otro, corridas con la diferencia de metros (ver compartidos.py).
@@ -227,7 +235,7 @@ def reglas_compartidas(datos, ruta, tramo):
         if r_otro is None:
             continue
         for i, r in enumerate(r_otro.get("reglas", {}).get(str(tramo), [])):
-            if r.get("solo_esta_ruta") or r.get("entregar_control"):
+            if r.get("solo_esta_ruta") or r.get("entregar_control") or r.get("general"):
                 continue
             centro = (float(r.get("desde", 0)) + float(r.get("hasta", 0))) / 2 + corr
             if not (lo - MARGEN_COMPARTIDO <= centro <= hi + MARGEN_COMPARTIDO):
@@ -249,28 +257,59 @@ def _candidatas(datos, ruta, tramo, dist):
     return c + _comunes(datos, ruta, tramo, dist)
 
 
-def _vale(r, rapido):
-    return r.get("activa", True) and (rapido or not r.get("solo_rapido"))
+def _vale(r, rapido, lento=False):
+    return (r.get("activa", True) and (rapido or not r.get("solo_rapido")) and (lento or not r.get("solo_lento"))
+            and not r.get("general"))
 
 
-def regla_activa(datos, ruta, tramo, dist, rapido=False):
+def reglas_generales(datos, ruta, tramo, rapido=False, lento=False):
+    """3.5.0: reglas «general» (todo el tramo) de este recorrido; en el camino a cargar, las de las comunes."""
+    lista = list((ruta or {}).get("reglas", {}).get(str(tramo), []))
+    if int(tramo) == 0:
+        lista += list(datos.get("inicio_comun", []))
+    elif int(tramo) == 2:
+        lista += list(datos.get("regreso_comun", []))
+    return [r for r in lista if r.get("general") and r.get("activa", True)
+            and (rapido or not r.get("solo_rapido")) and (lento or not r.get("solo_lento"))]
+
+
+def combinar(generales, local):
+    """3.5.0: la regla que vale ahora = generales + la del lugar encima (la del lugar manda en lo que pida)."""
+    if not generales:
+        return local
+    out, exp = {}, {}
+    for g in generales:
+        exp.update(g.get("exp") or {})
+        out.update({k: v for k, v in g.items() if k not in ("exp", "general", "desde", "hasta")})
+    out["nota"] = "General: " + " · ".join(g.get("nota") or "regla general" for g in generales)
+    if local is not None:
+        exp.update(local.get("exp") or {})
+        out.update({k: v for k, v in local.items() if k != "exp"})
+    if exp:
+        out["exp"] = exp
+    out["_con_general"] = True
+    return out
+
+
+def regla_activa(datos, ruta, tramo, dist, rapido=False, lento=False):
     """Regla que aplica ahora (la más restrictiva si se solapan). None si ninguna.
-    rapido: modo rápido prendido (2.7.0: las reglas «solo_rapido» solo valen entonces)."""
+    rapido: modo rápido prendido (2.7.0: las reglas «solo_rapido» solo valen entonces); lento igual (3.5.0).
+    Las reglas «general» no cuentan aquí (ver reglas_generales / combinar)."""
     if dist is None:
         return None
     candidatas = _candidatas(datos, ruta, tramo, dist)
-    activas = [r for r in candidatas if _vale(r, rapido) and r.get("hasta", 0) <= dist <= r.get("desde", 0)]
+    activas = [r for r in candidatas if _vale(r, rapido, lento) and r.get("hasta", 0) <= dist <= r.get("desde", 0)]
     if not activas:
         return None
     return min(activas, key=lambda r: r.get("max_kmh", 999))
 
 
-def regla_proxima(datos, ruta, tramo, dist, ventana=80.0, rapido=False):
+def regla_proxima(datos, ruta, tramo, dist, ventana=80.0, rapido=False, lento=False):
     """Regla con límite de velocidad que empieza en los próximos `ventana` metros (para ir bajando)."""
     if dist is None:
         return None
     candidatas = _candidatas(datos, ruta, tramo, dist)
-    prox = [r for r in candidatas if _vale(r, rapido) and "max_kmh" in r and dist - ventana <= r.get("desde", 0) < dist]
+    prox = [r for r in candidatas if _vale(r, rapido, lento) and "max_kmh" in r and dist - ventana <= r.get("desde", 0) < dist]
     return min(prox, key=lambda r: r["max_kmh"]) if prox else None
 
 

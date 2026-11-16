@@ -23,10 +23,22 @@
         "solo_esta_ruta": true
       },
       {
-        "desde": 1850,
+        "desde": 1980,
         "hasta": 1400,
-        "desplazamiento_px": -4.0,
-        "nota": "Vinewood Hills: la ruta se sale del camino, barreras y cartel a la derecha"
+        "desplazamiento_px": -4.5,
+        "nota": "Vinewood Hills: la ruta se sale del camino, barreras y cartel a la derecha. 1.2.7: empieza en 1,98 km y -4,5 (en 1,78 km se pegó a la barrera derecha)"
+      },
+      {
+        "desde": 1400,
+        "hasta": 1100,
+        "desplazamiento_px": -2.5,
+        "nota": "Vinewood Hills (ida): seguir a la izquierda después de la regla anterior (1.2.7: en 1,26 km se pegó a la barrera derecha)"
+      },
+      {
+        "desde": 500,
+        "hasta": 130,
+        "max_kmh": 50,
+        "nota": "Granja 2: bajada antes de la entrada, llegar a ~50 (1.2.7: llegaba a 83 km/h a la esquina)"
       },
       {
         "desde": 130,
@@ -37,6 +49,12 @@
       }
     ],
     "2": [
+      {
+        "desde": 4050,
+        "hasta": 3850,
+        "desplazamiento_px": 1.5,
+        "nota": "Autopista de Vinewood Hills (vuelta): un poco a la derecha antes del cambio de carril (1.2.7: en 3,91 km se pegó a la barrera izquierda)"
+      },
       {
         "desde": 3850,
         "hasta": 3600,

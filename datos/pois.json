@@ -1,0 +1,231 @@
+{
+  "formato": 1,
+  "programa_minimo": "3.3.0",
+  "pois": [
+    {
+      "id": "p1",
+      "recorrido": "_camino",
+      "tramo": "0",
+      "metros": 210,
+      "nombre": "Poste de madera",
+      "icono": "peligro"
+    },
+    {
+      "id": "p2",
+      "recorrido": "_camino",
+      "tramo": "0",
+      "metros": 150,
+      "nombre": "Esquina al patio (grúa del puerto)",
+      "icono": "esquina"
+    },
+    {
+      "id": "p3",
+      "recorrido": "_camino",
+      "tramo": "0",
+      "metros": 5,
+      "nombre": "Punto de carga",
+      "icono": "carga"
+    },
+    {
+      "id": "p4",
+      "recorrido": "drogas_granja_1",
+      "tramo": "1",
+      "metros": 5690,
+      "nombre": "Puente de Elysian Island",
+      "icono": "puente"
+    },
+    {
+      "id": "p5",
+      "recorrido": "drogas_granja_1",
+      "tramo": "1",
+      "metros": 5580,
+      "nombre": "Esquina de Banning (salida del puente)",
+      "icono": "esquina"
+    },
+    {
+      "id": "p6",
+      "recorrido": "drogas_granja_1",
+      "tramo": "1",
+      "metros": 5350,
+      "nombre": "Banning: curva cerrada",
+      "icono": "curva"
+    },
+    {
+      "id": "p7",
+      "recorrido": "drogas_granja_1",
+      "tramo": "1",
+      "metros": 5000,
+      "nombre": "Subida de Autopia Parkway",
+      "icono": "subida"
+    },
+    {
+      "id": "p8",
+      "recorrido": "drogas_granja_1",
+      "tramo": "1",
+      "metros": 4880,
+      "nombre": "Maze Bank Arena",
+      "icono": "edificio"
+    },
+    {
+      "id": "p9",
+      "recorrido": "drogas_granja_1",
+      "tramo": "1",
+      "metros": 4720,
+      "nombre": "Davis Avenue: farolas al centro",
+      "icono": "peligro"
+    },
+    {
+      "id": "p10",
+      "recorrido": "drogas_granja_1",
+      "tramo": "1",
+      "metros": 3360,
+      "nombre": "Separador de Strawberry",
+      "icono": "peligro"
+    },
+    {
+      "id": "p11",
+      "recorrido": "drogas_granja_1",
+      "tramo": "1",
+      "metros": 3100,
+      "nombre": "Barrera de Mirror Park",
+      "icono": "peligro"
+    },
+    {
+      "id": "p12",
+      "recorrido": "drogas_granja_1",
+      "tramo": "1",
+      "metros": 2600,
+      "nombre": "Autopista de Vinewood Hills",
+      "icono": "punto"
+    },
+    {
+      "id": "p13",
+      "recorrido": "drogas_granja_1",
+      "tramo": "1",
+      "metros": 2130,
+      "nombre": "Salida a Vinewood Park Drive",
+      "icono": "salida"
+    },
+    {
+      "id": "p14",
+      "recorrido": "drogas_granja_1",
+      "tramo": "1",
+      "metros": 1750,
+      "nombre": "Señora Road",
+      "icono": "punto"
+    },
+    {
+      "id": "p15",
+      "recorrido": "drogas_granja_1",
+      "tramo": "1",
+      "metros": 1100,
+      "nombre": "Curva en bajada",
+      "icono": "curva"
+    },
+    {
+      "id": "p16",
+      "recorrido": "drogas_granja_2",
+      "tramo": "1",
+      "metros": 2050,
+      "nombre": "Se separan Granja 1 y Granja 2",
+      "icono": "salida"
+    },
+    {
+      "id": "p17",
+      "recorrido": "drogas_granja_2",
+      "tramo": "1",
+      "metros": 130,
+      "nombre": "Entrada a la granja",
+      "icono": "meta"
+    },
+    {
+      "id": "p18",
+      "recorrido": "drogas_granja_1",
+      "tramo": "2",
+      "metros": 5330,
+      "nombre": "Señora Road (vuelta)",
+      "icono": "punto"
+    },
+    {
+      "id": "p19",
+      "recorrido": "drogas_granja_1",
+      "tramo": "2",
+      "metros": 3950,
+      "nombre": "Paso sobre la autopista",
+      "icono": "puente"
+    },
+    {
+      "id": "p20",
+      "recorrido": "drogas_granja_1",
+      "tramo": "2",
+      "metros": 3650,
+      "nombre": "Esquina muy cerrada",
+      "icono": "esquina"
+    },
+    {
+      "id": "p21",
+      "recorrido": "drogas_granja_2",
+      "tramo": "2",
+      "metros": 3720,
+      "nombre": "Cambio de carril (Vinewood Hills)",
+      "icono": "peligro"
+    },
+    {
+      "id": "p22",
+      "recorrido": "drogas_granja_2",
+      "tramo": "2",
+      "metros": 2820,
+      "nombre": "Salida a la derecha",
+      "icono": "salida"
+    },
+    {
+      "id": "p23",
+      "recorrido": "_regreso",
+      "tramo": "2",
+      "metros": 2190,
+      "nombre": "Árbol de Textile City",
+      "icono": "peligro"
+    },
+    {
+      "id": "p24",
+      "recorrido": "_regreso",
+      "tramo": "2",
+      "metros": 1400,
+      "nombre": "Carteles de Strawberry Avenue",
+      "icono": "peligro"
+    },
+    {
+      "id": "p25",
+      "recorrido": "_regreso",
+      "tramo": "2",
+      "metros": 1000,
+      "nombre": "Esquina de Maze Bank",
+      "icono": "esquina"
+    },
+    {
+      "id": "p26",
+      "recorrido": "_regreso",
+      "tramo": "2",
+      "metros": 800,
+      "nombre": "Poste gigante (Maze Bank Arena)",
+      "icono": "peligro"
+    },
+    {
+      "id": "p27",
+      "recorrido": "_regreso",
+      "tramo": "2",
+      "metros": 620,
+      "nombre": "Banning: postes de madera",
+      "icono": "peligro"
+    },
+    {
+      "id": "p28",
+      "recorrido": "_regreso",
+      "tramo": "2",
+      "metros": 60,
+      "nombre": "Punto final (B)",
+      "icono": "meta"
+    }
+  ],
+  "fecha": "2026-11-14 17:35"
+}

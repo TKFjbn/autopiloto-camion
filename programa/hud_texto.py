@@ -71,6 +71,13 @@ class PlantillasAprendidas:
         return (np.array(ts, np.float32) if ts else np.zeros((0, 320), np.float32)), ls
 
     def cuantos(self):
+        if not self.ruta and not self.datos:              # 3.2.8: contar aunque el programa no haya partido
+            try:
+                import carpetas
+                d = np.load(os.path.join(carpetas.EQUIPO, "plantillas_hud_usuario_v3.npz"))
+                return len(d["l"])
+            except Exception:  # noqa
+                return 0
         return sum(len(v) for v in self.datos.values())
 
     def aprender(self, glifos):
@@ -96,6 +103,18 @@ class PlantillasAprendidas:
             self.cambios += 1
             _P = None                             # recargar plantillas con las nuevas
         return nuevo
+
+    def olvidar(self):
+        """3.2.8: borra los números aprendidos en este PC (por si aprendió alguno mal)."""
+        global _P
+        if not self.ruta:
+            import carpetas
+            self.ruta = os.path.join(carpetas.EQUIPO, "plantillas_hud_usuario_v3.npz")
+        self.datos = {}
+        self.cambios = 0
+        _P = None
+        if self.ruta and os.path.exists(self.ruta):
+            os.remove(self.ruta)
 
     def guardar(self, forzar=False):
         import time
@@ -127,6 +146,23 @@ def _clasificar(vec, cual):
     s = t @ v
     i = int(np.argmax(s))
     return l[i], float(s[i])
+
+
+CONFUNDIBLES = set("035689")          # 3.2.8: números que se confunden entre sí sobre fondo claro
+UMBRAL_DUDOSO = 0.03
+
+
+def _alternativas(vec, cual, mejor, s_mejor, margen=0.06):
+    """Números confundibles casi tan parecidos como el elegido (a menos de 'margen' de puntaje)."""
+    t, l = _plantillas()[cual]
+    v = vec.reshape(-1)
+    v = v / (np.linalg.norm(v) + 1e-6)
+    s = t @ v
+    alts = set()
+    for j in range(len(l)):
+        if l[j] != mejor and l[j] in CONFUNDIBLES and float(s[j]) >= s_mejor - margen:
+            alts.add(l[j])
+    return "".join(sorted(alts))
 
 
 def _clasificar_margen(vec, cual):
@@ -201,6 +237,7 @@ def leer_distancia(reg):
         x += 1
     texto, flecha, gap_prev = "", None, None
     glifos = []
+    dudas = {}                     # 3.2.8: posición en 'texto' -> segundo candidato (dígito dudoso)
     Wc = int(round(Hl * 0.9))
     for a, z in trozos:
         sub = banda[:, a:z].astype(np.float32)
@@ -219,9 +256,20 @@ def leer_distancia(reg):
             continue
         texto += lab_
         glifos.append((lab_, vec, s, margen))
+        if lab_ in CONFUNDIBLES and margen < UMBRAL_DUDOSO:
+            alts = _alternativas(vec, "dist", lab_, s)
+            if alts:
+                dudas[len(texto) - 1] = alts
     mt = re.search(r"(\d+(?:\.\d+)?)(km|m)", texto)
     if not mt:
         return None
+    # dígitos dudosos, numerados entre los dígitos del número (sin el punto)
+    dudosos, k = {}, 0
+    for pos in range(mt.start(1), mt.end(1)):
+        if texto[pos].isdigit():
+            if pos in dudas:
+                dudosos[k] = dudas[pos]
+            k += 1
     if mt.group(2) == "km" and "." not in mt.group(1) and len(mt.group(1)) >= 3:
         # el punto a veces no se ve (fondo claro): los km siempre llevan 2 decimales
         texto = mt.group(1)[:-2] + "." + mt.group(1)[-2:] + "km"
@@ -230,7 +278,52 @@ def leer_distancia(reg):
     metros = v * 1000 if mt.group(2) == "km" else v
     if metros > 30000:
         return None
-    return {"metros": metros, "texto": mt.group(0), "flecha": flecha, "glifos": glifos}
+    return {"metros": metros, "texto": mt.group(0), "flecha": flecha, "glifos": glifos,
+            "digitos": mt.group(1).replace(".", ""), "unidad": mt.group(2), "dudosos": dudosos}
+
+
+def _armar(digitos, unidad):
+    """Dígitos (sin punto) y unidad -> (metros, texto). Los km llevan siempre 2 decimales."""
+    if unidad == "km":
+        n = digitos[:-2] + "." + digitos[-2:] if len(digitos) >= 3 else "0." + digitos.zfill(2)
+        return float(n) * 1000, n + "km"
+    return float(digitos), digitos + "m"
+
+
+def votar_dudosos(d, historial, ahora, ventana=1.5):
+    """3.2.8: un dígito dudoso (sobre fondo claro el 6 casi empata con el 0) se decide con las lecturas de
+    los últimos segundos: si en ellas ese dígito se leyó SIN duda como uno de los candidatos parecidos, se usa ese.
+    historial: lista de (t, digitos, unidad, dudosos, metros). Devuelve d (cambiado o no)."""
+    if not d or not d.get("dudosos"):
+        return d
+    dig, uni = list(d["digitos"]), d["unidad"]
+    cambio = False
+    for i, alt in d["dudosos"].items():
+        # solo dígitos que no cambian en 1-2 s de viaje (centenas de metros o más): los de las decenas
+        # cambian solos al avanzar y votar con lecturas viejas los echaría a perder
+        valor = 10 ** (len(dig) - 1 - i) * (10 if uni == "km" else 1)
+        if valor < 100:
+            continue
+        votos = {}
+        for (t, dg, un, du, *_r) in historial:
+            if ahora - t > ventana or un != uni or len(dg) != len(dig) or i in du:
+                continue
+            votos[dg[i]] = votos.get(dg[i], 0) + 1
+        if votos:
+            mejor = max(votos, key=votos.get)
+            if mejor in alt and votos[mejor] >= 2 and votos[mejor] > votos.get(dig[i], 0):
+                dig[i] = mejor
+                cambio = True
+    if not cambio:
+        return d
+    metros, texto = _armar("".join(dig), uni)
+    # el resultado tiene que cuadrar con la última lectura (la distancia baja de a poco)
+    previas = [h for h in historial if len(h) > 4 and ahora - h[0] <= ventana]
+    if previas:
+        t_p, m_p = previas[-1][0], previas[-1][4]
+        if not (-30 <= m_p - metros <= 45 * max(0.1, ahora - t_p) + 30):
+            return d
+    return dict(d, metros=metros, texto=texto + "*", digitos="".join(dig), dudosos={}, glifos=[])
 
 
 # ------------------------------------------------------------------ caja de zona
@@ -515,6 +608,15 @@ class MonitorHud:
         except Exception:
             d = None
         if d is not None:
+            import time
+            ahora = time.monotonic()
+            hist = getattr(self, "_hist_dig", [])
+            d0 = d
+            d = votar_dudosos(d, hist, ahora)
+            if d is not d0:
+                self.votadas = getattr(self, "votadas", 0) + 1
+            hist.append((ahora, d0["digitos"], d0["unidad"], d0["dudosos"], d["metros"]))
+            self._hist_dig = [h for h in hist if ahora - h[0] <= 3.0][-12:]
             d = self._filtrar_distancia(d)
         if d is not None:
             self.estado.update({"metros": d["metros"], "dist_texto": d["texto"], "flecha": d["flecha"]})
