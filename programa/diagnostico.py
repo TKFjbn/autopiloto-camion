@@ -74,6 +74,16 @@ def comprobar():
     res.append(_libreria("mss (captura de pantalla)", "mss", "mss"))
     res.append(_libreria("Pillow (imágenes de la interfaz)", "PIL", "pillow"))
 
+    # --- 3.6.0: YOLO (opcional)
+    try:
+        import vision_yolo
+        hay, txt = vision_yolo.disponible()
+        res.append(_r("YOLO (detección de vehículos, opcional)", "ok" if hay and "tarjeta" in txt else "aviso",
+                      txt.split(": ", 1)[-1], "" if hay and "tarjeta" in txt else
+                      "Opcional. Para instalarlo: doble clic en «Instalar YOLO.bat» (descarga ~2,5 GB)."))
+    except Exception as e:  # noqa
+        res.append(_r("YOLO (opcional)", "aviso", f"no se pudo revisar: {e}", ""))
+
     # --- captura de pantalla real
     try:
         import mss

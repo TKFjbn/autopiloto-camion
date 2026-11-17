@@ -104,7 +104,7 @@ class Autopiloto:
                            "direccion,acelerador,freno,en_calle,calle_corr,gps_fuera,motivo,modo_lento,"
                            "carril_desvio,carril_conf,carril_usado,marcador_dist,marcador_ang,fin_ruta,largo_ruta,"
                            "dist_punto_m,flecha,cardinal,zona,calle,evento,bifurcacion,desvio_cerca,desplazamiento,condicion,ruta,regla,"
-                           "rumbo_abs,rumbo_fuente\n")
+                           "rumbo_abs,rumbo_fuente,yolo_accion,yolo_objeto,yolo_dist,yolo_ttc,yolo_n\n")
         # incidentes (choques, maniobras, desactivaciones...) con el lugar, en un archivo acumulado
         self.ruta_incidentes = os.path.join(os.path.dirname(os.path.abspath(log)) if log else "viajes",
                                             "incidentes.csv")
@@ -192,6 +192,24 @@ class Autopiloto:
                 print(f"[!] Detección de carril desactivada ({e})")
         elif cc.get("activo"):
             print("[i] Carril sin calibrar: ejecuta  python calibrar.py --solo carril")
+        # 3.6.0: YOLO en modo sombra (no maneja: muestra y anota lo que habría hecho)
+        self.yolo = None
+        self.yolo_est = {}
+        self._yolo_accion_ant = "nada"
+        if (cfg.get("yolo") or {}).get("activo", True) and cfg.get("experimental", {}).get("yolo", True):
+            try:
+                import vision_yolo
+                hay, txt = vision_yolo.disponible()
+                if hay:
+                    self.yolo = vision_yolo.VigiaYolo(cfg)
+                    if self.yolo.error:
+                        print(f"[i] YOLO: {self.yolo.error}")
+                    self.yolo.iniciar()
+                else:
+                    print(f"[i] {txt}")
+            except Exception as e:  # noqa
+                print(f"[i] YOLO desactivado ({e})")
+                self.yolo = None
 
         self.estado = "INACTIVO"
         self.fuera_de_calle = False
@@ -686,6 +704,8 @@ class Autopiloto:
             p["causa"] = self.causa_probable(p)
         self.ui.pedir_observaciones({
             "motivo": motivo, "puntos": puntos, "recorrido": getattr(self, "recorrido", None) or "",
+            "cargamento": getattr(self, "cargamento", None), "dist_inicial": getattr(self, "dist_inicial_est", None),
+            "desconocido": self.ruta_act is None,
             "archivo": self.log.name if self.log else None, "ap": self})
 
     def escribir_observaciones(self, lineas):
@@ -1862,6 +1882,8 @@ class Autopiloto:
             # v30: el trabajo solo se da por TERMINADO con la notificación "Trabajo completado"
             # (antes: tramo 2 + 5 s sin ver ruta, y eso cortaba la vuelta tras "descargado")
 
+        if self.estado in ("ARRANCANDO", "CONDUCIENDO"):           # 3.7.0: YOLO puede frenar o hacer esperar
+            acel, freno = self._yolo_frenar(acel, freno, ahora)
         if self.estado in ("ARRANCANDO", "CONDUCIENDO", "RECUPERANDO"):
             self.ctrl.set(direccion, acel, freno)
         return res, (direccion, acel, freno)
@@ -1946,6 +1968,107 @@ class Autopiloto:
     def confirmar_con_pantalla(self):
         ep = self.cfg.get("etapas_pantalla", {})
         return ep.get("activo", True) and ep.get("confirmar_etapas", True)
+
+    def _yolo_paso(self, res):
+        """3.6.0: le pasa al vigía la velocidad y la curva; anota (solo anota) cuando «habría frenado»."""
+        self.yolo.contexto(self.kmh, res.get("giro_adelante") or 0.0)
+        est = self.yolo.ultima()
+        self.yolo_est = est
+        acc = est.get("accion") or "nada"
+        frena = self.experimental("yolo_frena")
+        if acc != self._yolo_accion_ant and self.estado == "CONDUCIENDO":
+            if acc in ("frenar", "frenar a fondo", "esperar") and not frena:
+                txt = f"YOLO (sombra): habría {acc.upper()}: {est.get('texto')}"
+                print(f"\n[i] {txt}")
+                self.evento = (self.evento + " | " if self.evento else "") + txt
+        self._yolo_accion_ant = acc
+
+    def _yolo_frenar(self, acel, freno, ahora):
+        """3.7.0 (etapa 2) y 3.8.0 (etapa 3): YOLO maneja en estos casos:
+        - «frenar a fondo» (choca en menos de ~1 s): freno a fondo, sin acelerar, al menos 0,8 s.
+        - «frenar» (choca en menos de 2 s, o a menos de 1 s de camino del de adelante): freno suave según lo
+          cerca (30-80 %), al menos 0,5 s; al soltar, 1,5 s con el acelerador limitado al 30 %.
+        - «esperar» (parado con algo delante a menos de ~12 m): no arranca, freno suave para quedarse quieto.
+        «seguir» sigue en sombra. Se apaga en Experimental («YOLO frena de verdad») o por regla."""
+        if self.yolo is None or not self.experimental("yolo_frena"):
+            return acel, freno
+        est = self.yolo_est or {}
+        acc = est.get("accion") or "nada"
+        fresco = ahora - float(est.get("t") or 0) < 0.5            # detección de hace menos de medio segundo
+        if fresco and acc == "frenar a fondo":
+            self._yolo_freno_hasta = ahora + 0.8
+        if fresco and acc == "frenar":                     # 3.8.0 (etapa 3): frenar suave, según lo cerca
+            self._yolo_suave_hasta = ahora + 0.5
+            self._yolo_suave_nivel = self._yolo_nivel_freno(est)
+        activo = None
+        if ahora < getattr(self, "_yolo_freno_hasta", 0.0):
+            activo = "frenar a fondo"
+        elif ahora < getattr(self, "_yolo_suave_hasta", 0.0):
+            activo = "frenar"
+        elif fresco and acc == "esperar" and (self.kmh or 0) < 3:
+            # no esperar para siempre a algo quieto (un NPC parado, un auto estacionado mal visto)
+            oid = (est.get("causa") or {}).get("id")
+            if oid != getattr(self, "_yolo_espera_id", None):
+                self._yolo_espera_id, self._yolo_espera_t0 = oid, ahora
+            maximo = float((self.cfg.get("yolo") or {}).get("esperar_max_s", 10.0))
+            if ahora - self._yolo_espera_t0 < maximo:
+                activo = "esperar"
+            elif not getattr(self, "_yolo_espera_avisado", None) == oid:
+                self._yolo_espera_avisado = oid
+                print(f"\n[i] YOLO: lleva {maximo:.0f} s delante y no se mueve; sigo (tómalo tú si hace falta).")
+        if activo is None:
+            if getattr(self, "_yolo_actuando", None):
+                if self._yolo_actuando in ("frenar", "frenar a fondo"):
+                    self._yolo_tope_hasta = ahora + 1.5        # 3.8.0: no acelerar de golpe tras frenar
+                print("\n[i] YOLO: libre, sigo.")
+                self._yolo_actuando = None
+            if ahora < getattr(self, "_yolo_tope_hasta", 0.0):
+                return min(acel, 0.3), freno
+            return acel, freno
+        if activo != getattr(self, "_yolo_actuando", None):
+            txt = est.get("texto") or ""
+            if activo == "frenar":
+                txt += f" (freno {self._yolo_suave_nivel * 100:.0f} %)"
+            print(f"\n[!] YOLO: {({'frenar a fondo': 'FRENO A FONDO', 'frenar': 'FRENO'}).get(activo, 'ESPERO')}: {txt}")
+            self.evento = (self.evento + " | " if self.evento else "") + f"YOLO {activo}: {txt}"
+            if self.ui is not None:
+                try:
+                    self.ui.notificar("problema", "YOLO: " + ({"frenar a fondo": "frenó a fondo",
+                                                               "frenar": "frenó"}).get(activo, "espera"), txt)
+                except Exception:  # noqa
+                    pass
+            self._yolo_actuando = activo
+        self.motivo = "YOLO " + activo
+        if activo == "frenar a fondo":
+            return 0.0, 1.0
+        if activo == "frenar":
+            return 0.0, max(freno, float(getattr(self, "_yolo_suave_nivel", 0.35)))
+        return 0.0, max(freno, 0.3)
+
+    def _yolo_nivel_freno(self, est):
+        """3.8.0: fuerza del freno para «frenar»: por el tiempo hasta chocar (2 s -> 35 %, 1 s -> 80 %) y por lo
+        pegado que va (a menos de 1 s de camino del de adelante: de 30 % a 70 %). El mayor de los dos."""
+        c = est.get("causa") or {}
+        nivel = 0.3
+        ttc = c.get("ttc")
+        if ttc is not None:
+            k = max(0.0, min(1.0, (2.0 - float(ttc)) / 1.0))
+            nivel = max(nivel, 0.35 + 0.45 * k)
+        v = (self.kmh or 0) / 3.6
+        z = c.get("z")
+        if z is not None and v > 0.5:
+            h = float(z) / v
+            if h < 1.0:
+                nivel = max(nivel, 0.3 + 0.4 * (1.0 - h))
+        return min(0.8, nivel)
+
+    def _csv_yolo(self):
+        est = getattr(self, "yolo_est", None) or {}
+        if not est:
+            return ",,,,"
+        c = est.get("causa") or {}
+        return (f"{est.get('accion', '')},{c.get('clase', '')},{_f(c.get('z'))},{_f(c.get('ttc'))},"
+                f"{len(est.get('objetos') or [])}")
 
     def _csv_rumbo(self):
         r = getattr(self, "rumbo", None)
@@ -2305,7 +2428,8 @@ class Autopiloto:
         """La distancia inicial se estima con cada lectura del HUD: distancia + lo recorrido desde que se empezó
         a buscar. Se reconoce con la mediana de las primeras lecturas y, durante 40 s, si 3 lecturas seguidas
         coinciden con OTRO recorrido, se corrige (p. ej. el HUD mostró 5630 varios segundos y era 5530)."""
-        if self.ruta_elegida is not None:                 # 3.2.5: elegido a mano: no reconocer, solo revisar
+        nueva = self.ruta_elegida == "__nueva__"           # 3.7.1: «Ruta nueva / desconocida»
+        if self.ruta_elegida is not None and not nueva:   # 3.2.5: elegido a mano: no reconocer, solo revisar
             self._revisar_elegida(d)
             return
         if self.ruta_buscar_desde is None or self.tramo != 1 or d is None:
@@ -2328,21 +2452,22 @@ class Autopiloto:
             if len(m) < 2:
                 return
             est = _mediana(m[-5:])
-            r = self.rutas_mod.reconocer(self.rutas, est, carg)
+            self.dist_inicial_est = est                      # 3.7.1: para crear la ruta nueva en observaciones
+            r = None if nueva else self.rutas_mod.reconocer(self.rutas, est, carg)
             if r is not None:
                 d0 = r.get("distancia_inicial")
                 if d0 is not None and abs(est - d0) > r.get("tolerancia", 80):
                     # 3.2.3: se reconoció cambiando un dígito: la distancia de ahora es la de la ruta menos lo recorrido
                     self._dref_semilla = float(d0) - (self.odo - rec["odo0"])
                 self._fijar_recorrido(r, carg, est, "reconocido")
-            elif ahora - rec["t0"] > 10:
+            elif ahora - rec["t0"] > 10 or (nueva and len(m) >= 3):
                 self._rec_desconocido = True
                 self.recorrido = self.rutas_mod.nombre_recorrido(None, carg, est)
                 print(f"\n[i] Recorrido nuevo: {self.recorrido}. Todavía no hay reglas para él.")
                 self.incidente(f"recorrido sin reglas: {self.recorrido}")
             return
         ult = m[-3:]
-        if len(ult) < 3 or max(ult) - min(ult) > self.REC_ACUERDO_M:
+        if nueva or len(ult) < 3 or max(ult) - min(ult) > self.REC_ACUERDO_M:
             return
         est = _mediana(ult)
         r = self.rutas_mod.reconocer(self.rutas, est, carg)
@@ -2358,6 +2483,16 @@ class Autopiloto:
                 print("[i] Recorrido: automático (se reconoce por la distancia al cargar).")
             self.ruta_elegida = None
             return
+        if archivo == "__nueva__":                         # 3.7.1: ruta que el programa no conoce
+            self.ruta_elegida = archivo
+            self.ruta_act = None
+            self.regla = None
+            self._rec_desconocido = self.tramo != 1 or self.ruta_buscar_desde is None
+            self.recorrido = self.rutas_mod.nombre_recorrido(None, getattr(self, "cargamento", None),
+                                                             getattr(self, "dist_inicial_est", None))
+            print("\n[i] Recorrido: ruta nueva / desconocida. No se usan reglas de otras rutas (solo las comunes); "
+                  "al terminar puedes ponerle nombre en las observaciones.")
+            return
         r = next((x for x in self.rutas.get("rutas", []) if x.get("_archivo") == archivo), None)
         if r is None:
             print(f"[!] No encuentro el recorrido {archivo} en datos/rutas.")
@@ -2368,7 +2503,7 @@ class Autopiloto:
         print(f"\n[i] Recorrido elegido a mano: {self.recorrido}. Se usan sus reglas hasta terminar el trabajo.")
 
     def _aplicar_elegida(self):
-        if self.ruta_elegida is None or self.rutas_mod is None:
+        if self.ruta_elegida is None or self.rutas_mod is None or self.ruta_elegida == "__nueva__":
             return
         r = next((x for x in self.rutas.get("rutas", []) if x.get("_archivo") == self.ruta_elegida), None)
         if r is None:
@@ -2613,6 +2748,8 @@ class Autopiloto:
                 self.carril = carril.DetectorCarrilIPM(self.cfg["carril"])
             except Exception as e:  # noqa
                 print(f"[!] Carril: {e}")
+        if self.yolo is not None:                      # 3.6.0
+            self.yolo.reconfigurar(self.cfg)
         if cap_norte is not None and self.rumbo is not None:
             cap_norte = vision.Captura(geometria.region_ampliada_real(self.cfg, self.rumbo.margen))
         return cap, cap_norte
@@ -2668,6 +2805,8 @@ class Autopiloto:
                 dt = t_ini - t_prev
                 t_prev = t_ini
                 res, (d, a, f) = self.paso(img, dt, kmh)
+                if self.yolo is not None:                  # 3.6.0: modo sombra
+                    self._yolo_paso(res)
                 self._volcar_observaciones()
 
                 if self.log:
@@ -2684,7 +2823,7 @@ class Autopiloto:
                                    f"{_f(res.get('bifurcacion_dist'))},{_f(res.get('desvio_cerca'))},{self.desp_f:.2f},"
                                    f"{'' if getattr(self, 'condicion', None) is None else self.condicion},"
                                    f"{_txt(getattr(self, 'recorrido', None) or '')},{_txt((self.regla or {}).get('nota'))},"
-                                   f"{self._csv_rumbo()}\n")
+                                   f"{self._csv_rumbo()},{self._csv_yolo()}\n")
                     self.evento = ""
                 if t_ini - getattr(self, "_t_salud", 0.0) > 0.25:
                     self._t_salud = t_ini
@@ -2713,6 +2852,7 @@ class Autopiloto:
                         "condicion": getattr(self, "condicion", None),
                         "regla": (self.regla or {}).get("nota"),
                         "rumbo_abs": None if self.rumbo is None else self.rumbo.valor,
+                        "yolo": None if self.yolo is None else (self.yolo_est.get("accion") or "nada"),
                         "usuario": self.usuario, "problemas": self.problemas,
                         "pantalla": ("Menú de carga" if self.pantalla.get("menu") else
                                      (f"Barra de progreso {100 * (self.pantalla.get('progreso') or 0):.0f}%"
@@ -2740,8 +2880,14 @@ class Autopiloto:
                     if self.res_carril is not None:
                         import carril
                         vis_c = carril.dibujar_ipm(self.res_carril, self.carril)
+                    vis_y = None
+                    if self.yolo is not None and self.ui is not None:
+                        try:
+                            vis_y = self.yolo.dibujar()
+                        except Exception:  # noqa
+                            vis_y = None
                     if self.ui is not None:
-                        self.ui.imagenes({"minimapa": vis, "carril": vis_c})
+                        self.ui.imagenes({"minimapa": vis, "carril": vis_c, "yolo": vis_y})
                     else:
                         cv2.imshow("autopiloto (debug)", vis)
                         if vis_c is not None:
@@ -2753,6 +2899,8 @@ class Autopiloto:
         except KeyboardInterrupt:
             pass
         finally:
+            if getattr(self, "yolo", None) is not None:
+                self.yolo.parar()
             self.ctrl.soltar_todo()
             self.ctrl.cerrar()
             if self.log:

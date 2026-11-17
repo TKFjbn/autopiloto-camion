@@ -45,7 +45,8 @@ CAMPOS_BOOL = (("sin_freno", "Sin freno (solo soltar)"), ("sin_bifurcacion", "No
 EXP_REGLA = (("velocidad_sin_vaiven", "Velocidad sin sube y baja"),
              ("velocidad_suave_curvas", "Velocidad suave en curvas"),
              ("lado_suave_autopista", "Lado suave en autopista"),
-             ("usar_grabaciones", "Usar grabaciones de teclas"))
+             ("usar_grabaciones", "Usar grabaciones de teclas"),
+             ("yolo_frena", "YOLO frena de verdad"))
 EXP_OPC = ("como siempre", "prendida", "apagada")
 MODOS = (("lento", "lento"), ("rapido", "rápido"), ("normal", "normal"))
 AVANCE_MAX = 5.0
@@ -247,15 +248,37 @@ class VentanaMapa:
             w.bind("<Control-z>", lambda _e: self.deshacer())
         self.can.bind("<Enter>", lambda _e: self.can.focus_set(), add="+")
 
-        der_ext = ttk.Frame(cuerpo, width=400)
+        # 3.6.1: divisor que se arrastra para cambiar el ancho del panel (se recuerda)
+        ancho0 = int(self.app.prefs.get("mapa_panel_ancho", 400) or 400)
+        divisor = tk.Frame(cuerpo, width=6, bg=T.get("borde", "#3f4147"), cursor="sb_h_double_arrow")
+        divisor.pack(side="left", fill="y")
+        der_ext = ttk.Frame(cuerpo, width=ancho0)
         der_ext.pack(side="left", fill="y")
         der_ext.pack_propagate(False)
+        self._der_ext = der_ext
+
+        def arrastrar(e):
+            total = cuerpo.winfo_width()
+            x = e.x_root - cuerpo.winfo_rootx()
+            ancho = int(max(300, min(total - 300, total - x - 3)))
+            der_ext.configure(width=ancho)
+            self.tv.column("nota", width=max(240, ancho - 170))
+
+        def soltar(_e):
+            self.app.prefs["mapa_panel_ancho"] = int(der_ext.cget("width"))
+            try:
+                self.app.guardar_prefs()
+            except Exception:  # noqa
+                pass
+        divisor.bind("<B1-Motion>", arrastrar)
+        divisor.bind("<ButtonRelease-1>", soltar)
         import desplazable                         # 3.4.1: barra a la derecha si el panel no cabe en la pantalla
-        marco, der, self._lienzo_der = desplazable.crear(der_ext, bg=T["bg"], estilo="TFrame", padding=6)
+        marco, der, self._lienzo_der = desplazable.crear(der_ext, bg=T["bg"], estilo="TFrame", padding=6,
+                                                         horizontal=True)      # 3.6.1: y abajo si no cabe a lo ancho
         marco.pack(fill="both", expand=True)
         ttk.Label(der, text="Reglas de este tramo", style="Titulo.TLabel").pack(anchor="w")
         self.tv = ttk.Treeview(der, columns=("n", "tramo", "nota"), show="headings", height=9)
-        for c, t, w in (("n", "#", 28), ("tramo", "Desde → hasta", 100), ("nota", "Nota", 240)):
+        for c, t, w in (("n", "#", 28), ("tramo", "Desde → hasta", 100), ("nota", "Nota", max(240, ancho0 - 170))):
             self.tv.heading(c, text=t)
             self.tv.column(c, width=w, anchor="w")
         self.tv.pack(fill="x")

@@ -58,6 +58,7 @@ ESTADOS = {  # estado interno -> (texto, color)
     "DETENIDO": ("Detenido", "#4e5058"), "TAREA": ("Calibrando / probando", "#16a085"),
 }
 AUTO_RECORRIDO = "Automático"
+NUEVA_RECORRIDO = "Ruta nueva / desconocida"          # 3.7.1
 TRAMOS = ["0 - Ir a cargar", "1 - Ir al punto de entrega (A)", "2 - Volver a la zona de trabajo (B)"]
 
 TEMAS = {
@@ -82,8 +83,8 @@ PREFS_DEFECTO = {
     "tema": "oscuro",
     "vista": "completa",                 # completa, compacta, mini
     "ayuda": True,                       # mensajes al pasar el mouse
-    "separadas": {"minimapa": False, "carril": False, "mapa": False},
-    "vistas": {"minimapa": True, "carril": True, "mapa": True},       # 3.4.0: qué vistas se ven en Conducir
+    "separadas": {"minimapa": False, "carril": False, "mapa": False, "yolo": False},
+    "vistas": {"minimapa": True, "carril": True, "mapa": True, "yolo": True},       # 3.4.0: qué vistas se ven en Conducir
     "consola_separada": False,                                         # 3.4.1
     "volante": "circulo",                                              # 3.5.0: "circulo" o "barra"
     "geometria": {"completa": "1280x940", "compacta": "860x840", "mini": "640x560"},
@@ -251,7 +252,7 @@ class App:
         self.aplicar_tema(self.prefs["tema"], guardar=False)
         self.notif = notificador.Notificador(root, self.prefs["notificaciones"], self._titulo_juego())
         self.poner_vista(self.prefs["vista"], guardar=False)
-        for nombre in ("minimapa", "carril", "mapa"):
+        for nombre in ("minimapa", "carril", "mapa", "yolo"):
             if self.prefs["separadas"].get(nombre):
                 self.separar(nombre)
         if self.prefs.get("consola_separada"):
@@ -320,6 +321,8 @@ class App:
             self.var_tramo.set(TRAMOS[t])
         arch = ses.get("recorrido") or ""
         nombre = next((n for n, a in self.recorridos if a == arch), None) if arch else None
+        if arch == "__nueva__":
+            nombre = NUEVA_RECORRIDO
         self.var_recorrido.set(nombre or AUTO_RECORRIDO)
         if t or nombre:
             print(f"[i] Sigo donde quedé: {TRAMOS[t] if 0 <= t < len(TRAMOS) else t}"
@@ -645,11 +648,14 @@ class App:
         self.recorridos = self._lista_recorridos()
         self.var_recorrido = tk.StringVar(value=AUTO_RECORRIDO)
         cb = self.cb_recorrido = ttk.Combobox(opc, textvariable=self.var_recorrido, state="readonly", width=24,
-                                              values=[AUTO_RECORRIDO] + [n for n, _a in self.recorridos])
+                                              values=[AUTO_RECORRIDO, NUEVA_RECORRIDO]
+                                              + [n for n, _a in self.recorridos])
         cb.pack(side="left", padx=(6, 12))
         cb.bind("<<ComboboxSelected>>", self.cambiar_recorrido)
         self._ayuda(cb, "Qué recorrido es. «Automático»: se reconoce por la distancia justo después de cargar. Si "
                         "activas a mitad de camino, elígelo aquí para que use sus reglas en la ida y la vuelta. "
+                        "«Ruta nueva / desconocida»: una ruta que el programa no conoce (o que confunde con otra): "
+                        "no usa reglas de otras rutas y al terminar le pones nombre en las observaciones. "
                         "Al terminar el trabajo vuelve solo a «Automático».")
         self.var_debug = tk.BooleanVar(value=True)
         self.var_csv = tk.BooleanVar(value=True)
@@ -767,7 +773,11 @@ class App:
                0.62),
               ("mapa", "Mapa de ruta", "La ruta del tramo actual y el camión. Rueda = zoom (sigue solo al camión "
                                        "mientras anda). Doble clic = abrir la pestaña «Mapa de ruta» para editar.",
-               1.5))
+               1.5),
+              ("yolo", "YOLO", "Vehículos y personas delante (modo sombra: no maneja). Cajas con la distancia y "
+                               "el tiempo hasta chocar, el pasillo de peligro y lo que habría hecho. Necesita "
+                               "«Instalar YOLO.bat» y la calibración del carril; se ve con la vista de depuración.",
+               1.8))
 
     def _cambio_vistas(self):
         self.prefs.setdefault("vistas", {}).update({n: bool(v.get()) for n, v in self.var_vistas.items()})
@@ -879,6 +889,9 @@ class App:
                   "Encuentra solo el minimapa, el velocímetro y los textos del HUD; tú revisas y confirmas. Sigue a la ventana del juego."),
                  ("Calibrar solo carril", lambda: self.calibrar("carril"),
                   "Calibra la vista de la cámara para la ayuda de carril (opcional)."),
+                 ("Máscara de cabina (YOLO)", lambda: self.calibrar("yolo"),
+                  "Tapa las partes de la cabina (tablero, parantes, espejos) para que YOLO no las confunda con "
+                  "vehículos. Captura en primera persona, dibuja rectángulos con el mouse."),
                  ("Calibrar desde imagen…", self.calibrar_imagen, "Calibra usando una captura guardada."),
                  ("Continuar ▶", self.continuar, "Sigue con la calibración después de capturar con F11."),
                  ("Probar con video o imagen…", self.probar,
@@ -1130,6 +1143,17 @@ class App:
          "Detecta la N que recorre el borde del minimapa y mide cuánto gira el mapa de un cuadro a otro: da hacia "
          "dónde apunta el camión en grados. Se guarda en el viaje (columna rumbo_abs) y con él se arma el mapa de "
          "la ruta. Se aplica al iniciar el programa."),
+        ("yolo", "Detección de vehículos y personas (YOLO, modo sombra)", "3.6.0",
+         "Mira delante del camión con YOLO y calcula a qué distancia está cada vehículo o persona y si viene "
+         "hacia ti. En esta versión NO maneja: en la vista «YOLO» y en el viaje (columnas yolo_…) dice qué habría "
+         "hecho (seguir, frenar, frenar a fondo, esperar). Necesita «Instalar YOLO.bat» y la calibración del "
+         "carril. Se aplica al iniciar el programa."),
+        ("yolo_frena", "YOLO frena de verdad (frenar, frenar a fondo y esperar)", "3.7.0",
+         "Con YOLO prendido, maneja: si algo en tu pasillo choca en menos de 2 s o vas a menos de 1 s de camino "
+         "del de adelante, frena suave según lo cerca (30-80 %) y después no acelera de golpe; si choca en menos "
+         "de ~1 s, freno a fondo; si estás parado con algo a menos de 12 m delante, no arranca (máximo 10 s con lo "
+         "mismo quieto delante, después sigue). Avisa en pantalla y queda en el viaje. «Seguir» sigue en sombra. "
+         "Vale al momento; también se puede apagar por regla."),
     )
 
     def _pestana_experimental(self):
@@ -1823,6 +1847,84 @@ class App:
                 t.delete("1.0", "1000.0")
             t.see("end")
 
+    # ------------------------------------------------------------ ruta nueva desde las observaciones (3.7.1)
+    def _obs_ruta_nueva(self, cab, datos):
+        import rutas as _rt
+        rn = {"on": tk.BooleanVar(value=bool(datos.get("desconocido"))),
+              "producto": tk.StringVar(value=datos.get("cargamento") if datos.get("cargamento") in _rt.PRODUCTOS
+                                       else _rt.PRODUCTOS[0]),
+              "nombre": tk.StringVar(value="")}
+        caja = ttk.LabelFrame(cab, text=" Ruta nueva ", padding=6)
+        caja.pack(fill="x", pady=(6, 0))
+        ttk.Checkbutton(caja, text="Este viaje fue por una ruta nueva: ponerle nombre", variable=rn["on"],
+                        command=lambda: mostrar()).pack(anchor="w")
+        cuerpo = ttk.Frame(caja)
+        fila = ttk.Frame(cuerpo)
+        fila.pack(fill="x", pady=(4, 0))
+        ttk.Label(fila, text="Producto:").pack(side="left")
+        ttk.Combobox(fila, textvariable=rn["producto"], values=list(_rt.PRODUCTOS), state="readonly",
+                     width=16).pack(side="left", padx=(4, 6))
+        ttk.Label(fila, text="–  Nombre:").pack(side="left")
+        ttk.Entry(fila, textvariable=rn["nombre"], width=28).pack(side="left", padx=4)
+        lbl = ttk.Label(cuerpo, text="", style="Tenue.TLabel", wraplength=760, justify="left")
+        lbl.pack(anchor="w", pady=(4, 0))
+        d0 = datos.get("dist_inicial")
+        try:
+            cercanas = _rt.parecidas(_rt.cargar(), None, d0)
+        except Exception:  # noqa
+            cercanas = []
+
+        def texto(*_a):
+            n = " ".join(rn["nombre"].get().split()) or "[nombre]"
+            t = f"Quedará como «{rn['producto'].get()} - {n}»"
+            t += f", empezando a {_km(d0)} al cargar." if d0 else \
+                ". No se midió la distancia al cargar: para usarla, elígela a mano en «Recorrido»."
+            misma = [r for r in cercanas if not r.get("cargamento") or r.get("cargamento") == rn["producto"].get()]
+            if misma:
+                t += ("\nOjo: " + ", ".join(f"{_rt.nombre_recorrido(r)} ({_km(r.get('distancia_inicial'))})"
+                                            for r in misma)
+                      + " empieza a una distancia parecida; el programa las puede confundir. Si pasa, elige esta "
+                        "a mano en «Recorrido».")
+            if datos.get("recorrido") and not datos.get("desconocido"):
+                t += f"\nEl programa la tomó como «{datos['recorrido']}»: sus reglas no se cambian."
+            lbl.configure(text=t)
+        rn["nombre"].trace_add("write", texto)
+        rn["producto"].trace_add("write", texto)
+
+        def mostrar():
+            if rn["on"].get():
+                cuerpo.pack(fill="x")
+                texto()
+            else:
+                cuerpo.pack_forget()
+        mostrar()
+        return rn
+
+    def _ruta_nueva_creada(self, nueva, datos):
+        archivo, nombre = nueva
+        print(f"[OK] Ruta nueva creada: {nombre} (datos/rutas/{archivo}). Ya aparece en «Recorrido» y en el "
+              "Mapa de ruta.")
+        self._refrescar_recorridos()
+        if self.ap is not None:
+            self.orden("recargar_rutas")
+        ant = datos.get("recorrido")
+        if datos.get("archivo") and ant:                  # su mapa, desde este viaje
+            def armar():
+                try:
+                    import mapa
+                    hechos = mapa.desde_viaje(datos["archivo"], renombrar={ant: nombre})
+                    if any(h[0] == nombre for h in hechos):
+                        print(f"[OK] Mapa de {nombre} armado desde el viaje.")
+                except Exception as e:  # noqa
+                    print(f"[i] Mapa de {nombre}: {e}")
+            threading.Thread(target=armar, daemon=True).start()
+        v = getattr(self, "ventana_mapa", None)
+        if v is not None:
+            try:
+                v.cargar_recorridos()
+            except Exception:  # noqa
+                pass
+
     # ------------------------------------------------------------ reglas desde las observaciones (3.4.2)
     def _obs_regla(self, caja, p):
         """Botón «+ Regla aquí» y, al pulsarlo, los campos de la regla (desde, hasta, qué hace)."""
@@ -2104,7 +2206,7 @@ class App:
         if est is not None and self.hilo is not None and self.hilo.is_alive():
             self._actualizar_estado(est)
         if imgs:
-            for nombre, clave in (("minimapa", "minimapa"), ("carril", "carril")):
+            for nombre, clave in (("minimapa", "minimapa"), ("carril", "carril"), ("yolo", "yolo")):
                 lbl = self._destino_imagen(nombre)
                 if lbl is not None and imgs.get(clave) is not None:
                     self._mostrar_imagen(lbl, imgs[clave], nombre)
@@ -2292,6 +2394,7 @@ class App:
         ttk.Label(fila_u, text="Usuario:").pack(side="left")
         var_u = tk.StringVar(value=self.var_usuario.get())
         ttk.Entry(fila_u, textvariable=var_u, width=30).pack(side="left", padx=4)
+        rn = self._obs_ruta_nueva(cab, datos)                                             # 3.7.1
         ttk.Label(cab, text="Puntos críticos (lo que vio el programa y la causa probable). Escribe tus "
                             "indicaciones (qué debería hacer ahí) y, si quieres, crea una regla en ese lugar con "
                             "«+ Regla aquí» (se ve en verde en el Mapa de ruta):", wraplength=780).pack(anchor="w", pady=(6, 0))
@@ -2367,6 +2470,19 @@ class App:
             lineas = [f"# === OBSERVACIONES ({datos['motivo']}) {datetime.datetime.now():%Y-%m-%d %H:%M:%S} ===\n",
                       f"# usuario: {limpio(usuario) or '(sin nombre)'}\n",
                       f"# recorrido: {limpio(datos.get('recorrido') or '-')}\n"]
+            nueva = None                             # 3.7.1: ruta nueva con nombre
+            if rn["on"].get():
+                import rutas as _rt
+                try:
+                    arch_n, nombre_n = _rt.crear_ruta(rn["producto"].get(), rn["nombre"].get(),
+                                                      datos.get("dist_inicial"), datos.get("archivo"))
+                except Exception as e:  # noqa
+                    messagebox.showerror("Ruta nueva", f"No se pudo crear la ruta:\n{e}", parent=win)
+                    return
+                nueva = (arch_n, nombre_n)
+                d0 = datos.get("dist_inicial")
+                lineas.append(f"# ruta nueva: {limpio(nombre_n)} | archivo {arch_n} | distancia al cargar "
+                              f"{_km(d0) if d0 else '-'} | antes figuraba como {limpio(datos.get('recorrido') or '-')}\n")
             n_punto = 0
             nuevas = []                              # 3.4.2: reglas creadas aquí
             for p, v, sel, regla in entradas:
@@ -2407,8 +2523,10 @@ class App:
                     print(f"[!] No se pudieron guardar las observaciones: {e}")
                     return
             print(f"[OK] Observaciones guardadas en {datos['archivo']}")
+            if nueva:
+                self._ruta_nueva_creada(nueva, datos)
             if nuevas:
-                self._guardar_reglas_obs(datos.get("recorrido"), nuevas)
+                self._guardar_reglas_obs(nueva[1] if nueva else datos.get("recorrido"), nuevas)
             self.notificar("reporte", "Reporte guardado", os.path.basename(datos["archivo"]))
             cerrar_win()
 
@@ -2696,7 +2814,17 @@ class App:
             return []
 
     def _archivo_recorrido(self):
+        if self.var_recorrido.get() == NUEVA_RECORRIDO:
+            return "__nueva__"
         return dict(self.recorridos).get(self.var_recorrido.get())
+
+    def _refrescar_recorridos(self):
+        """3.7.1: después de crear una ruta nueva."""
+        self.recorridos = self._lista_recorridos()
+        try:
+            self.cb_recorrido.configure(values=[AUTO_RECORRIDO, NUEVA_RECORRIDO] + [n for n, _a in self.recorridos])
+        except Exception:  # noqa
+            pass
 
     def cambiar_recorrido(self, _evt=None):
         if self.ap is not None:
@@ -2728,7 +2856,7 @@ class App:
         def trabajo():
             try:
                 import calibrar as cal
-                print(f"\n[i] Calibración {'del carril' if solo == 'carril' else 'completa'}"
+                print(f"\n[i] Calibración {'del carril' if solo == 'carril' else 'de la máscara de cabina (YOLO)' if solo == 'yolo' else 'completa'}"
                       f"{' desde ' + imagen if imagen else ''}")
                 if not imagen:
                     print("[i] Ve al juego y pulsa F11 para capturar la pantalla. Después vuelve aquí "

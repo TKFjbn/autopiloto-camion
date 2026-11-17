@@ -115,6 +115,56 @@ def cargamento_de_texto(texto):
     return None
 
 
+PRODUCTOS = ("Drogas", "Ropa", "Productos varios", "Medicamentos")     # 3.7.1: los 4 cargamentos del trabajo
+NUEVA = "__nueva__"                     # 3.7.1: recorrido elegido «Ruta nueva / desconocida»
+
+
+def _slug_texto(t):
+    import re
+    import unicodedata
+    t = unicodedata.normalize("NFKD", str(t).lower()).encode("ascii", "ignore").decode()
+    return re.sub(r"[^a-z0-9]+", "_", t).strip("_") or "ruta"
+
+
+def parecidas(datos, cargamento, dist_inicial):
+    """3.7.1: rutas del mismo cargamento cuya distancia inicial queda cerca (el programa las podría confundir)."""
+    out = []
+    if dist_inicial is None:
+        return out
+    for r in datos.get("rutas", []):
+        if cargamento and r.get("cargamento") and r["cargamento"] != cargamento:
+            continue
+        d0 = r.get("distancia_inicial")
+        if d0 is not None and abs(float(d0) - float(dist_inicial)) <= max(150, 2 * float(r.get("tolerancia", 80))):
+            out.append(r)
+    return out
+
+
+def crear_ruta(cargamento, nombre, dist_inicial=None, origen=None):
+    """3.7.1: datos/rutas/<cargamento>_<nombre>.json, sin reglas todavía. Devuelve (archivo, nombre_recorrido).
+    Si ya existe uno con ese nombre: ValueError."""
+    import json
+    import carpetas
+    nombre = " ".join(str(nombre).split())
+    if not nombre:
+        raise ValueError("falta el nombre de la ruta")
+    if cargamento not in PRODUCTOS:
+        raise ValueError(f"producto desconocido: {cargamento}")
+    archivo = f"{_slug_texto(cargamento)}_{_slug_texto(nombre)}.json"
+    ruta = os.path.join(carpetas.RUTAS, archivo)
+    if os.path.exists(ruta):
+        raise ValueError(f"ya existe una ruta «{cargamento} - {nombre}»")
+    js = {"formato": 1, "programa_minimo": "3.7.1", "nombre": nombre, "cargamento": cargamento,
+          "descripcion": f"{cargamento}: {nombre} (creada desde las observaciones"
+                         + (f" del viaje {os.path.basename(origen)}" if origen else "") + ")",
+          "tolerancia": 60, "reglas": {"1": [], "2": []}}
+    if dist_inicial is not None:
+        js["distancia_inicial"] = int(round(float(dist_inicial)))
+    with open(ruta, "w", encoding="utf-8") as fh:
+        json.dump(js, fh, ensure_ascii=False, indent=2)
+    return archivo, f"{cargamento} - {nombre}"
+
+
 def nombre_recorrido(ruta, cargamento=None, dist_inicial=None):
     """'Drogas - Granja 1'; ruta desconocida: 'Drogas - desconocido (5.120 m)'."""
     if ruta is not None:

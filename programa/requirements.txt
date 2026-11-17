@@ -6,3 +6,5 @@ pillow>=10.0
 # vgamepad>=0.1   (instala también el driver ViGEmBus)
 # opcional: leer el nombre de la zona y la calle (OCR de Windows)
 # winsdk
+# opcional (3.6.0): YOLO, detección de vehículos (usa «Instalar YOLO.bat»)
+# ultralytics

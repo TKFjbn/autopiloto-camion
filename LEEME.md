@@ -1,4 +1,4 @@
-# Autopiloto de camión (GTA V RP) · versión 3.5.0
+# Autopiloto de camión (GTA V RP) · versión 3.8.0
 
 Sigue la ruta roja del minimapa en las 3 partes en que se conduce y espera solo en las paradas.
 No toca el launcher ni la carpeta del juego: lee la pantalla y simula teclas o un mando.
@@ -12,6 +12,39 @@ No toca el launcher ni la carpeta del juego: lee la pantalla y simula teclas o u
 | 5. Descargar | "Descargando camión…": espera | — |
 | 6. Volver a B | Ruta de vuelta | Autopiloto |
 | 7. Terminar | Al desaparecer la ruta queda en TERMINADO | Tú |
+
+## Novedades de la 3.8.0: YOLO frena suave (etapa 3)
+- Con «YOLO frena de verdad» prendido, YOLO también **frena suave** cuando algo en tu pasillo (a menos de 40 m) va a chocar en menos de 2 s o vas a menos de 1 s de camino del de adelante: suelta el acelerador y frena del 30 al 80 % según lo cerca, al menos 0,5 s. Después, 1,5 s con el acelerador limitado al 30 % para no volver a pegarse. El freno a fondo y la espera siguen igual; «seguir» sigue solo anotado.
+
+## Novedades de la 3.7.1: rutas nuevas
+- **«Recorrido» → «Ruta nueva / desconocida»:** para una ruta que el programa no conoce o que confunde con otra. No usa reglas de otras rutas (solo las comunes) y mide la distancia al cargar.
+- **Observaciones → «Ruta nueva»:** marca «Este viaje fue por una ruta nueva», elige el **producto** (Drogas, Ropa, Productos varios, Medicamentos) y escribe el **nombre**: queda como «Producto - Nombre» (p. ej. «Drogas - Granja 3»). Se crea `datos/rutas/<producto>_<nombre>.json` con la distancia al cargar de ese viaje, su mapa sale del mismo viaje y las reglas que crees ahí con «+ Regla aquí» van a la ruta nueva. Avisa si otra ruta del mismo producto empieza a una distancia parecida (el programa las puede confundir: entonces elígela a mano en «Recorrido»). Viene marcado solo si el programa no reconoció la ruta.
+
+## Novedades de la 3.7.0: YOLO frena (etapa 2)
+- Con YOLO instalado y Experimental → **«YOLO frena de verdad»** prendido (viene prendido), YOLO maneja en los dos casos claros:
+  - **Freno a fondo** si algo en tu pasillo va a chocar en menos de ~1 s (al menos 0,8 s de freno).
+  - **Esperar** si estás parado con algo a menos de 12 m delante: no arranca. Si lo mismo sigue quieto 10 s (un NPC, un auto estacionado), sigue igual y te avisa.
+- Cada vez avisa en pantalla, en el registro y en el viaje («YOLO frenar a fondo: auto a 9 m…»). «Frenar» y «seguir» siguen en sombra (solo anotados).
+- Se puede apagar en Experimental (vale al momento) o en una zona con una regla: Funciones experimentales aquí → «YOLO frena de verdad: apagada».
+- Ojo: el freno a fondo es la última defensa; con un auto detenido y yendo a 50 km/h o más, puede no alcanzar a parar. Tómalo tú si ves que no frena a tiempo.
+
+## Novedades de la 3.6.3
+- **YOLO más estable:** con el camión quieto delante de un auto, la distancia ya no salta ni la caja cambia de color: sigue al mismo vehículo aunque el modelo lo llame «auto» y después «camión», suaviza la distancia y solo dice que se acerca si es claramente más que el temblor de la caja.
+
+## Novedades de la 3.6.2
+- **YOLO:** el recuadro verde (lo que mira) cubre casi todo el parabrisas: los camiones y buses delante se ven enteros y los autos pegados al capó también. Lo tapado con la máscara no se mira. Al guardar la máscara avisa si un rectángulo tapa la calle de tu carril (no tapes el limpiaparabrisas: YOLO no lo confunde con un vehículo y taparlo esconde la pista de la derecha).
+
+## Novedades de la 3.6.1
+- **Mapa de ruta:** el panel derecho (reglas y «Editar regla») se ensancha o angosta arrastrando la franja que lo separa del mapa (se recuerda). Si aun así no cabe a lo ancho, aparece una barra abajo (también Shift + rueda).
+
+## Novedades de la 3.6.0: YOLO en modo sombra (opcional)
+YOLO mira delante del camión (primera persona) y detecta autos, camiones, buses, motos, bicicletas y personas. **En esta versión no maneja**: dice qué *habría hecho* y lo anota, para revisar las falsas alarmas antes de dejarlo frenar.
+- **Instalar (una vez):** doble clic en `Instalar YOLO.bat` (descarga ~2,5 GB; responde S si tienes tarjeta NVIDIA). El modelo (~6 MB) queda en `mi_equipo/yolo/`. «Comprobar instalación» dice si está y si usa la tarjeta o el procesador.
+- **Necesita la calibración del carril:** de ese trapecio salen el horizonte, la altura de la cámara y el centro del carril, y con eso la distancia de cada cosa. La distancia es aproximada (depende del campo de visión, `yolo.fov_horizontal_grados`, 60 por defecto); el **tiempo hasta chocar** no depende de eso y es lo que se usa para decidir.
+- **Máscara de cabina:** Calibración → «Máscara de cabina (YOLO)»: arrastra rectángulos sobre el tablero, los parantes, los espejos o el limpiaparabrisas. El recuadro verde es lo que mira YOLO.
+- **Vista «YOLO»** en Conducir (con «Vista de depuración»): cajas con la distancia y el tiempo hasta chocar, el **pasillo de peligro** (el ancho del camión + 0,6 m a cada lado, curvado según la ruta del minimapa) y arriba lo que habría hecho: seguir, frenar, frenar a fondo o esperar (parado con algo a menos de 12 m delante). Con personas, el doble de prudente.
+- **En el viaje (CSV):** columnas `yolo_accion`, `yolo_objeto`, `yolo_dist`, `yolo_ttc`, `yolo_n`, y un evento cada vez que «habría frenado». Mándame esos viajes y ajusto los umbrales.
+- Se apaga en Experimental → «Detección de vehículos y personas (YOLO, modo sombra)».
 
 ## Novedades de la 3.5.0
 - **Modo lento nuevo:** es el modo rápido al revés: rectas 60, recta larga 70, curvas −15 % y esquinas −3 km/h, hasta que lo apagues (RE PÁG o el botón en Mandos). Ya no existe el límite de 15 km/h por 90 s.

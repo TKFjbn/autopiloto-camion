@@ -152,11 +152,91 @@ def calibrar_carril(pantalla, cfg, origen=(0, 0), rect=None):
     return True
 
 
+def mascara_yolo(pantalla, cfg, origen=(0, 0), rect=None):
+    """3.6.0: rectángulos de la cabina que YOLO no debe mirar (tablero, parantes, espejos, limpiaparabrisas).
+    Arrastra con el mouse para dibujar; Z = deshacer; ENTER = guardar; ESC = salir sin cambios.
+    Se guardan en fracciones de la ventana del juego (siguen sirviendo si la mueves)."""
+    import vision_yolo
+    alto, ancho = pantalla.shape[:2]
+    esc = min(1.0, 1000 / alto, 1700 / ancho)
+    vista0 = cv2.resize(pantalla, None, fx=esc, fy=esc)
+    yc = vision_yolo.configurar(cfg)
+    rects = [list(r) for r in yc.get("mascara") or []]
+    zona = None
+    try:
+        tr = [[x - origen[0], y - origen[1]] for x, y in cfg["carril"]["trapecio"]]
+        g = vision_yolo.Geometria(tr, ancho, yc["ancho_carril_m"], yc["fov_horizontal_grados"])
+        zona = g.zona((0, 0, ancho, alto))
+    except Exception as e:  # noqa
+        print(f"   (No se puede mostrar la zona que mira YOLO: {e})")
+    estado = {"ini": None, "act": None}
+
+    def clic(ev, mx, my, *_):
+        fx, fy = mx / esc / ancho, my / esc / alto
+        if ev == cv2.EVENT_LBUTTONDOWN:
+            estado["ini"], estado["act"] = (fx, fy), (fx, fy)
+        elif ev == cv2.EVENT_MOUSEMOVE and estado["ini"] is not None:
+            estado["act"] = (fx, fy)
+        elif ev == cv2.EVENT_LBUTTONUP and estado["ini"] is not None:
+            (a, b), (c, d) = estado["ini"], (fx, fy)
+            if abs(c - a) > 0.005 and abs(d - b) > 0.005:
+                rects.append([round(min(a, c), 4), round(min(b, d), 4), round(max(a, c), 4), round(max(b, d), 4)])
+            estado["ini"] = estado["act"] = None
+
+    nombre = "Mascara de cabina (YOLO): arrastra = tapar, Z = deshacer, ENTER = guardar, ESC = salir"
+    ventana_encima(nombre)
+    cv2.setMouseCallback(nombre, clic)
+    print("\nMÁSCARA DE CABINA (YOLO): arrastra con el mouse rectángulos sobre lo que es de la cabina y no de la "
+          "calle (tablero, parantes, espejos, limpiaparabrisas). El recuadro verde es lo que mira YOLO.")
+    while True:
+        v = vista0.copy()
+        if zona:
+            x, y, w, h = zona
+            cv2.rectangle(v, (int(x * esc), int(y * esc)), (int((x + w) * esc), int((y + h) * esc)), (0, 220, 0), 2)
+        todos = rects + ([[*estado["ini"], *estado["act"]]] if estado["ini"] is not None else [])
+        for fx0, fy0, fx1, fy1 in todos:
+            a = (int(min(fx0, fx1) * ancho * esc), int(min(fy0, fy1) * alto * esc))
+            b = (int(max(fx0, fx1) * ancho * esc), int(max(fy0, fy1) * alto * esc))
+            capa = v.copy()
+            cv2.rectangle(capa, a, b, (120, 120, 120), -1)
+            v = cv2.addWeighted(capa, 0.6, v, 0.4, 0)
+            cv2.rectangle(v, a, b, (0, 200, 255), 2)
+        _rotular(v, [f"{len(rects)} rectangulo(s) · ENTER guardar · Z deshacer · ESC salir"], 20, 40, 40, 0.8, 2)
+        cv2.imshow(nombre, v)
+        k = cv2.waitKey(30)
+        if k == 27:
+            cv2.destroyAllWindows()
+            print("   Máscara: sin cambios.")
+            return False
+        if k in (ord("z"), ord("Z")) and rects:
+            rects.pop()
+        if k in (13, 10):
+            break
+    cv2.destroyAllWindows()
+    # 3.6.2: avisar si algún rectángulo tapa la calle de tu carril (ahí tiene que mirar YOLO)
+    try:
+        tr = [[x - origen[0], y - origen[1]] for x, y in cfg["carril"]["trapecio"]]
+        chico = np.zeros((alto // 4, ancho // 4), np.uint8)
+        cv2.fillPoly(chico, [np.int32([[x / 4, y / 4] for x, y in tr])], 1)
+        total = max(1, int(chico.sum()))
+        for i, (fx0, fy0, fx1, fy1) in enumerate(rects, 1):
+            parte = chico[int(fy0 * alto / 4):int(fy1 * alto / 4) + 1, int(fx0 * ancho / 4):int(fx1 * ancho / 4) + 1]
+            tapa = int(parte.sum()) / total
+            if tapa > 0.05:
+                print(f"   [!] El rectángulo {i} tapa {tapa * 100:.0f} % de la calle de tu carril: ahí YOLO no verá "
+                      "los autos de delante. Si no es parte de la cabina, vuelve a hacer la máscara sin él.")
+    except Exception:  # noqa
+        pass
+    cfg.setdefault("yolo", {})["mascara"] = rects
+    print(f"   Máscara guardada: {len(rects)} rectángulo(s).")
+    return True
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--imagen")
     ap.add_argument("--config", default=None)
-    ap.add_argument("--solo", choices=["carril"], help="calibrar solo una parte (p. ej. --solo carril)")
+    ap.add_argument("--solo", choices=["carril", "yolo"], help="calibrar solo una parte (p. ej. --solo carril)")
     ap.add_argument("--espera", type=int, default=0,
                     help="0 = capturar con F11 (por defecto); N = cuenta atrás de N segundos")
     args = ap.parse_args()
@@ -511,6 +591,16 @@ def calibrar(config=None, solo=None, imagen=None, espera=0, continuar=None):
 
     if solo == "carril":
         if calibrar_carril(img, cfg, origen=origen, rect=rect):
+            configuracion.guardar(cfg, ruta_cfg)
+            print(f"Guardado en {cfg.get('_ruta')}")
+        return
+    if solo == "yolo":                                  # 3.6.0
+        if rect:
+            try:
+                geometria.preparar(cfg, rect=rect, persistir=False, avisar=False)
+            except Exception as e:  # noqa
+                print(f"   (No se pudo ubicar la calibración en esta ventana: {e})")
+        if mascara_yolo(img, cfg, origen=origen, rect=rect):
             configuracion.guardar(cfg, ruta_cfg)
             print(f"Guardado en {cfg.get('_ruta')}")
         return

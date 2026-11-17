@@ -7,6 +7,86 @@ Versionado semántico: **MAYOR.MENOR.PARCHE**.
 
 Los **datos** (`datos/`) llevan su propia versión en `datos/datos.json`. Cada entrega dice si es de **programa** (hay que actualizar `programa/`) o **solo datos** (basta con reemplazar `datos/`).
 
+## Programa 3.8.0 · Datos 1.2.7 (2026-11-17)
+Tipo: **programa, y cambia la conducción**: YOLO ya maneja también «frenar» (etapa 3). Los datos no cambian.
+- **«Frenar»** (choque en menos de 2 s a menos de 40 m, o a menos de 1 s de camino de lo que va delante):
+  - acelerador 0 y freno según el caso, siempre el mayor: por tiempo hasta chocar de 35 % (a 2 s) a 80 % (a 1 s); por distancia de 30 % a 70 % según lo pegado; mínimo 30 % y máximo 80 %;
+  - lo mantiene al menos 0,5 s;
+  - al soltar «frenar» o «frenar a fondo», 1,5 s con el acelerador limitado al 30 %.
+- Motivo `YOLO frenar`; aviso en pantalla y evento con la fuerza del freno («auto a 13 m (freno 48 %)»).
+- Prioridad: frenar a fondo > frenar > esperar. Misma casilla «YOLO frena de verdad», también por regla.
+- En el registro la sombra solo anota «frenar», «frenar a fondo» y «esperar» si «YOLO frena de verdad» está apagado.
+- **Prueba simulada** (auto detenido, camión a 50 km/h): «seguir» a 32 m; «frenar» desde 22 m, de 43 % a 76 %; «frenar a fondo» a 11 m. Pegado a 13 m a 86 km/h a la misma velocidad: «frenar» al 48 %, y después 1,5 s con el acelerador limitado al 30 %.
+
+## Programa 3.7.1 · Datos 1.2.7 (2026-11-16)
+Tipo: **programa**: ventana, observaciones y reconocimiento de la ruta. La forma de manejar no cambia. Los datos no cambian, pero las rutas nuevas que crees quedan en `datos/rutas/`.
+- **Recorrido «Ruta nueva / desconocida»** (`__nueva__`):
+  - no reconoce ni corrige por la distancia y no usa reglas de otras rutas;
+  - mide igual la distancia al cargar (mediana de las primeras lecturas, `dist_inicial_est`);
+  - se recuerda como las demás y vuelve a «Automático» al terminar el trabajo.
+- **Observaciones, sección «Ruta nueva»:** casilla (marcada si el programa no reconoció la ruta), menú desplegable de producto y nombre escrito por ti. Muestra cómo quedará el nombre, la distancia al cargar y un aviso si otra ruta del mismo producto empieza a menos de 150 m (o 2 veces su tolerancia) de diferencia.
+- **Al guardar:**
+  - `rutas.crear_ruta` crea el archivo (sin reglas, tolerancia 60) y avisa si ya existe;
+  - escribe `# ruta nueva: …` en el viaje;
+  - las reglas de «+ Regla aquí» van a la ruta nueva;
+  - arma su mapa desde ese viaje (`mapa.desde_viaje(..., renombrar=…)`);
+  - actualiza las listas de «Recorrido» y del Mapa de ruta y recarga las rutas en el programa.
+
+## Programa 3.7.0 · Datos 1.2.7 (2026-11-16)
+Tipo: **programa, y cambia la conducción**: YOLO ya maneja en dos casos (etapa 2). Los datos no cambian.
+- **`autopiloto._yolo_frenar`:** en ARRANCANDO y CONDUCIENDO, con YOLO y `experimental.yolo_frena` (prendido por defecto), usando una detección de menos de 0,5 s:
+  - **«frenar a fondo»:** acelerador 0 y freno 1,0 durante al menos 0,8 s.
+  - **«esperar»** (camión a menos de 3 km/h y algo a menos de 12 m en el pasillo): acelerador 0 y freno al menos 0,3. Con el mismo objeto delante por más de `yolo.esperar_max_s` (10 s), sigue y avisa.
+  - Motivo `YOLO …`, aviso en pantalla (tipo problema), evento en el CSV y un mensaje en el registro al terminar («YOLO: libre, sigo»).
+- «Frenar» y «seguir» siguen solo anotados. En el registro ya no se repiten «frenar a fondo» ni «esperar» como sombra cuando están activos.
+- «Esperar» con personas usa los 12 m sin duplicar (antes 24 m: el NPC del trabajo a 12 m habría bloqueado la salida).
+- **Por regla:** «Funciones experimentales aquí» suma «YOLO frena de verdad».
+- Experimental: nueva casilla «YOLO frena de verdad (frenar a fondo y esperar)».
+
+## Programa 3.6.3 · Datos 1.2.7 (2026-11-16)
+Tipo: **programa**, solo YOLO en modo sombra; la conducción no cambia y los datos tampoco.
+- **Seguimiento por grupo:** todo lo que no es persona es «vehículo», así que auto, camión, bus y moto se siguen como el mismo objeto aunque cambie el nombre. Se muestra el nombre que más se repite. Un objeto perdido por menos de 0,6 s sigue siendo el mismo.
+- **Distancia y lado suavizados:** mediana de los últimos 5 cuadros.
+- **Tiempo hasta chocar:** recta sobre el último segundo. Solo cuenta si el acercamiento supera 0,8 m/s y 2,5 veces el error de la recta. Con el camión a menos de 3 km/h y un acercamiento menor a 1,5 m/s, no hay tiempo hasta chocar.
+- **Pasillo con margen:** un objeto que ya estaba dentro tiene que salirse 0,4 m más para dejar de contar.
+- Prueba con un auto quieto a 13 m, la caja temblando ±4 px y el nombre cambiando cada cuadro: un solo objeto, distancia entre 12,7 y 13,2 m, sin tiempo hasta chocar y sin acciones. Con un auto que se acerca, avisa igual que antes, unos 0,1 s más tarde por el suavizado.
+
+## Programa 3.6.2 · Datos 1.2.7 (2026-11-16)
+Tipo: **programa**, solo YOLO en modo sombra; la conducción no cambia y los datos tampoco.
+- **Zona que mira YOLO:** va de 1,3 veces la altura del trapecio por encima del horizonte hasta 0,45 por debajo del borde cercano (antes 0,35 y 0,08). Así se ven los autos a menos de ~8 m y los vehículos altos completos.
+- **Máscara de cabina:** al guardar, avisa en el registro si un rectángulo tapa más del 5 % de la calle de tu carril (el trapecio).
+
+## Programa 3.6.1 · Datos 1.2.7 (2026-11-16)
+Tipo: **programa**, solo de ventana; la conducción no cambia y los datos tampoco.
+- **Mapa de ruta:** el panel derecho tiene un divisor que se arrastra para cambiar el ancho (mínimo 300 px). El ancho se guarda como `mapa_panel_ancho` en interfaz.json, y la columna «Nota» de la lista crece con el panel.
+- Si el contenido del panel es más ancho que él, aparece una barra de desplazamiento horizontal abajo; Shift + rueda también la mueve (`desplazable.crear(..., horizontal=True)`).
+
+## Programa 3.6.0 · Datos 1.2.7 (2026-11-16)
+Tipo: **programa**. La conducción **no cambia**: YOLO va en modo sombra, mira y anota pero no toca los pedales ni el volante. Los datos no cambian.
+- **`vision_yolo.py` (nuevo):** YOLO11n (ultralytics) en un hilo aparte, a 10 detecciones por segundo. Usa la tarjeta (CUDA) o el procesador; de noche (imagen oscura) pide más confianza (0,5). Clases: persona, bicicleta, auto, moto, bus y camión.
+  - **Geometría de primera persona desde el trapecio del carril:**
+    - horizonte = donde se juntan los lados del carril;
+    - altura de la cámara = ancho de carril (3,6 m) × alto en pantalla / ancho en pantalla;
+    - distancia Z = f·h/(y − horizonte), con f sacada de `fov_horizontal_grados`;
+    - lado X según el centro y el ancho del carril en esa fila.
+  - **Seguimiento** entre cuadros por superposición de cajas. El **tiempo hasta chocar** sale de una recta sobre la distancia de los últimos 0,8 s y no depende del error de escala.
+  - **Pasillo de peligro:** ancho del camión (3,07 m) + 0,6 m a cada lado. Largo = 4 s de camino (mínimo 25 m). Se curva con el giro de la ruta del minimapa.
+  - **Qué habría hecho:**
+    - **frenar a fondo:** choca en menos de 1 s;
+    - **frenar:** choca en menos de 2 s, o va a menos de 1 s de camino de algo;
+    - **seguir:** choca en menos de 4 s;
+    - **esperar:** parado con algo a menos de 12 m.
+    - Las decisiones fuertes solo cuentan con objetos a menos de 40 m. Con personas, el doble de prudente. Un objeto tiene que verse 3 cuadros seguidos.
+  - **Máscara de cabina:** rectángulos en fracciones de la ventana del juego, que se tapan antes de detectar.
+- **Autopiloto:** arranca YOLO si está instalado y la función experimental «yolo» está prendida. Le pasa la velocidad y la curva. Se reacomoda si mueves la ventana del juego. Imprime y anota un evento cada vez que «habría frenado», frenado a fondo o esperado. **CSV:** columnas nuevas `yolo_accion,yolo_objeto,yolo_dist,yolo_ttc,yolo_n`.
+- **Interfaz:**
+  - vista **«YOLO»** en Conducir (cuarto espacio, con la vista de depuración) y separable;
+  - Calibración → **«Máscara de cabina (YOLO)»** (`calibrar.py --solo yolo`);
+  - Experimental → «Detección de vehículos y personas (YOLO, modo sombra)»;
+  - «Comprobar instalación» revisa ultralytics, PyTorch y si usa la tarjeta.
+- **`Instalar YOLO.bat` (nuevo):** instala PyTorch (con CUDA si tienes NVIDIA) y ultralytics, y baja el modelo a `mi_equipo/yolo/`.
+- Si YOLO no está instalado, todo funciona como antes y solo se avisa una línea en el registro.
+
 ## Programa 3.5.0 · Datos 1.2.7 (2026-11-16)
 Tipo: **programa, y cambia la conducción**: modo lento nuevo, reglas generales, modo y funciones experimentales por regla, y avance en esquinas. Los datos no cambian: las reglas actuales siguen igual.
 - **Modo lento** (tecla RE PÁG o botón en Mandos): ahora es el modo rápido al revés, con el bloque `modo_lento` en la configuración.

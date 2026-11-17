@@ -198,13 +198,20 @@ def guardar(recorrido, tramos, origen, extras=None):
     return ruta
 
 
-def desde_viaje(ruta_csv, solo_si_falta=False):
-    """Arma y guarda los mapas de un viaje. Devuelve [(recorrido, tramos, archivo)]."""
+def desde_viaje(ruta_csv, solo_si_falta=False, renombrar=None):
+    """Arma y guarda los mapas de un viaje. Devuelve [(recorrido, tramos, archivo)].
+    renombrar (3.7.1): {nombre en el viaje: nombre nuevo} (la ruta nueva que se nombró en las observaciones)."""
     if not tiene_rumbo(ruta_csv):
         raise ValueError("ese viaje no tiene rumbo (se grabó con una versión anterior a la 2.4.0 o sin "
                          "«Rumbo exacto» en Experimental)")
     extras = {}
-    mapas = construir(leer_viaje(ruta_csv), extras)
+    filas = leer_viaje(ruta_csv)
+    if renombrar:
+        for f in filas:
+            r = (f.get("ruta") or "").strip()
+            if r in renombrar:
+                f["ruta"] = renombrar[r]
+    mapas = construir(filas, extras)
     hechos = []
     for rec, tramos in mapas.items():
         if "0" in tramos:                            # 3.3.0: camino a cargar común a todos los recorridos

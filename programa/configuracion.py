@@ -241,6 +241,8 @@ DEFAULTS = {
         "velocidad_sin_vaiven": True,  # 3.2.4: anticipar y no soltar del todo el acelerador por poco
         "trazados_comunes_vuelta": True,
         "rumbo_norte": True,          # 2.4.0: rumbo exacto con la N del minimapa (se guarda en el viaje)
+        "yolo": True,                 # 3.6.0: YOLO en modo sombra (si está instalado)
+        "yolo_frena": True,           # 3.7.0: YOLO frena a fondo y hace esperar de verdad (lo demás, en sombra)
         "usar_grabaciones": True,     # 2.4.1: apagar para hacer entradas/salidas a mano sin borrar nada
         "lado_suave_autopista": True  # 2.5.2: corrección de lado promediada a 70 km/h o más
     },
@@ -264,6 +266,14 @@ DEFAULTS = {
             "freno_max": 0.55,        # a más velocidad hace falta frenar más fuerte cuando sí hay que frenar
             "freno_espera_seg": 0.5
         }
+    },
+    "yolo": {                         # 3.6.0: detección de vehículos (modo sombra), ver vision_yolo.py
+        "activo": True,
+        "modelo": "yolo11n.pt",
+        "hz": 10,
+        "confianza": 0.35,
+        "fov_horizontal_grados": 60,  # primera persona: escala de la distancia (el tiempo hasta chocar no depende)
+        "mascara": []                 # rectángulos de la cabina a tapar (Calibración → Máscara de cabina)
     },
     "modo_lento": {                   # 3.5.0: el modo rápido al revés (tecla RE PÁG o reglas con "modo": "lento")
         "factor_curvas": 0.85,        # curvas normales, cerradas y largas
