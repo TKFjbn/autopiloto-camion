@@ -7,6 +7,20 @@ Versionado semántico: **MAYOR.MENOR.PARCHE**.
 
 Los **datos** (`datos/`) llevan su propia versión en `datos/datos.json`. Cada entrega dice si es de **programa** (hay que actualizar `programa/`) o **solo datos** (basta con reemplazar `datos/`).
 
+## Programa 3.9.0 · Datos 1.2.7 (2026-11-17)
+Tipo: **programa**: menú de trabajos, modo libre (prueba) e íconos de la flecha del HUD. **En el modo Camionero la conducción no cambia.** Los datos no cambian; las reglas del modo libre se guardan en `datos/modos/libre.json` cuando las crees.
+- **Menú de trabajos al abrir** (`menu_trabajos.py`): una tarjeta por trabajo, en una cuadrícula siempre centrada de hasta 3 por fila (el 4.º pasa abajo). Hoy: Camionero y Libre (prueba). Casilla «Abrir siempre…» para saltarse el menú. Botón «Trabajo: … ▾» arriba a la derecha para cambiar (cierra y vuelve a abrir el menú). `arranque.py --menu` lo fuerza; `--modo libre` lo salta.
+- **Cada trabajo tiene lo suyo:** ajustes en `mi_equipo/config_<trabajo>.json` (el libre parte de una copia del camionero, sin la calibración del carril ni la máscara de YOLO, porque el vehículo es otro) y viajes en `viajes/<trabajo>/`. El Camionero sigue con `mi_equipo/config.json` y `viajes/`.
+- **Modo libre (prueba):**
+  - sigue la ruta morada del GPS hasta el punto que marques en el mapa (color por defecto H 128–146);
+  - sin etapas, rutas, mapa de ruta, grabaciones, reconocimiento de recorrido ni notificaciones del trabajo;
+  - al llegar (distancia del HUD ≤ `modo_libre.llegada_m`, 20 m) frena, devuelve el control y avisa «Llegaste»;
+  - no va «directo al marcador» (en el minimapa no hay marcador rojo de destino);
+  - se ocultan: Empezar en, Recorrido, Saltar etapa, Grabar, las pestañas Mapa de ruta y Grabaciones y la vista del mapa en Conducir (también AV PÁG y F5 no hacen nada).
+- **Pestaña «Reglas del modo libre»:** reglas generales para todo el viaje (nota, máx. km/h, esquinas km/h, modo, avanzar antes/después de girar, lado, sin freno, funciones experimentales por regla, activa). Se suman como las generales del camionero y se aplican al momento.
+- **Calibración → «Color de la ruta»** (`calibrar --solo color`): clics sobre la línea del GPS para medir su color; se guarda en el config del trabajo abierto.
+- **Íconos de la flecha del HUD** (⬆ ⬅ ➡ ⬈ ⬉; «?» si hay distancia sin flecha reconocida) junto a la distancia en la tarjeta «Al punto» (todas las vistas) y en el panel flotante (F6). Por ahora solo se muestran: no se usan para conducir.
+
 ## Programa 3.8.0 · Datos 1.2.7 (2026-11-17)
 Tipo: **programa, y cambia la conducción**: YOLO ya maneja también «frenar» (etapa 3). Los datos no cambian.
 - **«Frenar»** (choque en menos de 2 s a menos de 40 m, o a menos de 1 s de camino de lo que va delante):

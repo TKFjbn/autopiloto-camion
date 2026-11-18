@@ -393,6 +393,13 @@ def cargar(ruta=None, guardar_migracion=True):
     ruta = ruta or _config_defecto()
     cfg = _cargar(ruta, guardar_migracion)
     cfg["_ruta"] = ruta
+    try:                                              # 3.9.0: trabajo elegido en el menú de inicio
+        import carpetas
+        cfg["modo"] = carpetas.MODO
+        if carpetas.MODO == "libre" and cfg.get("color_ruta_hsv") == DEFAULTS["color_ruta_hsv"]:
+            cfg["color_ruta_hsv"] = [list(r) for r in carpetas.COLOR_RUTA_LIBRE]
+    except Exception:  # noqa
+        cfg.setdefault("modo", "camionero")
     return cfg
 
 

@@ -8,7 +8,7 @@ Versión del programa (versionado semántico: MAYOR.MENOR.PARCHE).
 Los datos (carpeta datos/) llevan su propia versión en datos/datos.json, y cada archivo de datos dice
 la versión mínima del programa que necesita ("programa_minimo").
 """
-VERSION = "3.8.0"
+VERSION = "3.9.0"
 FORMATO_DATOS = 1          # formato de los archivos de datos/ que este programa sabe leer
 
 

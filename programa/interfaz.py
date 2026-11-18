@@ -39,6 +39,7 @@ import ventanas_extra                                # noqa: E402
 import panel                                         # noqa: E402
 import ventana_actualizar                            # noqa: E402
 import entrada                                       # noqa: E402
+import flechas                                       # noqa: E402
 
 CONFIG = carpetas.CONFIG
 
@@ -211,7 +212,14 @@ def limpiar_texto(t):
 class App:
     def __init__(self, root):
         self.root = root
-        root.title(f"Autopiloto de camión {version.VERSION}")
+        # 3.9.0: trabajo elegido en el menú del inicio (camionero / libre)
+        self.modo = carpetas.MODO
+        self.libre = self.modo == "libre"
+        import menu_trabajos
+        self.nombre_modo = menu_trabajos.NOMBRES.get(self.modo, self.modo.capitalize())
+        if self.libre:
+            self.VISTAS = tuple(v for v in type(self).VISTAS if v[0] != "mapa")   # sin mapa de ruta
+        root.title(f"Autopiloto {version.VERSION} — {self.nombre_modo}")
         root.minsize(560, 380)
         self.cola_log = queue.Queue()
         self.puente = Puente()
@@ -477,6 +485,10 @@ class App:
         self.lbl_recorrido = self._tkw(tk.Label(cab, text="Sin recorrido", font=("Segoe UI", 11, "bold"), padx=10),
                                        bg="panel", fg="texto")
         self.lbl_recorrido.pack(side="left")
+        b = ttk.Button(cab, text=f"Trabajo: {self.nombre_modo} ▾", style="Seg.TButton", command=self.cambiar_trabajo)
+        b.pack(side="right")
+        self._ayuda(b, "Cambia de trabajo (camionero, libre…): cierra el programa y vuelve a abrir el menú del "
+                       "inicio. Cada trabajo tiene sus propios ajustes y viajes.")
         self._ayuda(self.lbl_recorrido, "Cargamento y recorrido reconocidos al cargar (p. ej. Drogas - Granja 1).")
         self.lbl_etapa = self._tkw(tk.Label(cab, text="", font=("Segoe UI", 10)), bg="panel", fg="texto2")
         self.lbl_etapa.pack(side="left")
@@ -549,6 +561,8 @@ class App:
         nb = self.nb = ttk.Notebook(self.cont)
         nb.pack(fill="both", expand=True, pady=(8, 0))
         self._pestana_conducir()
+        if self.libre:
+            self._pestana_reglas_libre()                                  # 3.9.0
         self.tab_mapa = ttk.Frame(nb, style="Panel.TFrame")               # 3.4.0: editor del mapa
         nb.add(self.tab_mapa, text="  Mapa de ruta  ")
         ttk.Label(self.tab_mapa, text="Abriendo el mapa…", style="Tenue.TLabel").pack(pady=20)
@@ -558,6 +572,12 @@ class App:
         self._pestana_calibracion()
         self._pestana_ajustes()
         self._pestana_experimental()
+        if self.libre:                         # 3.9.0: sin rutas ni grabaciones en el modo libre
+            for t in (self.tab_mapa, self.tab_grab):
+                try:
+                    nb.hide(t)
+                except Exception:  # noqa
+                    pass
         nb.bind("<<NotebookTabChanged>>", self._cambio_pestana)
         try:
             self.root.after(1500, self.cargar_lista_viajes)    # 2.7.0: «último viaje» al abrir
@@ -625,6 +645,9 @@ class App:
             ("btn_hito", "⚑  Hito", "TButton", lambda: self.orden("hito"),
              "Marca este momento (por ejemplo, «va muy lento aquí») con 3 capturas, para explicarlo en las "
              "observaciones al terminar. En el juego: F9."))
+        if self.libre:                         # 3.9.0: no hay etapas ni grabaciones
+            defs = tuple(x for x in defs if x[0] not in ("btn_saltar", "btn_grabar"))
+            self.btn_saltar = self.btn_grabar = None
         self.btns_ap = []
         for i, (attr, txt, estilo, cmd, ayuda) in enumerate(defs):
             b = ttk.Button(fila, text=txt, style=estilo, command=cmd)
@@ -636,6 +659,9 @@ class App:
                 self.btns_ap.append(b)
         opc = self.f_diario_opc = ttk.Frame(f)
         opc.pack(fill="x", pady=(5, 0))
+        opc_camion = opc
+        if self.libre:                         # 3.9.0: «Empezar en» y «Recorrido» existen, pero no se ven
+            opc = ttk.Frame(f)
         ttk.Label(opc, text="Empezar en:").pack(side="left")
         self.var_tramo = tk.StringVar(value=TRAMOS[0])
         cb = ttk.Combobox(opc, textvariable=self.var_tramo, values=TRAMOS, state="readonly", width=34)
@@ -657,6 +683,7 @@ class App:
                         "«Ruta nueva / desconocida»: una ruta que el programa no conoce (o que confunde con otra): "
                         "no usa reglas de otras rutas y al terminar le pones nombre en las observaciones. "
                         "Al terminar el trabajo vuelve solo a «Automático».")
+        opc = opc_camion
         self.var_debug = tk.BooleanVar(value=True)
         self.var_csv = tk.BooleanVar(value=True)
         c = ttk.Checkbutton(opc, text="Vista de depuración", variable=self.var_debug, command=self.cambiar_debug)
@@ -892,6 +919,9 @@ class App:
                  ("Máscara de cabina (YOLO)", lambda: self.calibrar("yolo"),
                   "Tapa las partes de la cabina (tablero, parantes, espejos) para que YOLO no las confunda con "
                   "vehículos. Captura en primera persona, dibuja rectángulos con el mouse."),
+                 ("Color de la ruta", lambda: self.calibrar("color"),
+                  "Mide el color de la línea del GPS en el minimapa (roja en el camionero, morada en un punto "
+                  "libre). Marca un destino en el mapa antes de capturar con F11."),
                  ("Calibrar desde imagen…", self.calibrar_imagen, "Calibra usando una captura guardada."),
                  ("Continuar ▶", self.continuar, "Sigue con la calibración después de capturar con F11."),
                  ("Probar con video o imagen…", self.probar,
@@ -1455,6 +1485,8 @@ class App:
 
     def _destino_imagen(self, nombre):
         """Label (o mapa) donde dibujar la vista, o None si no se ve (para no gastar CPU)."""
+        if nombre not in self.var_vistas:          # 3.9.0: p. ej. el mapa en el modo libre
+            return None
         if nombre in self.ventanas:
             return self.ventanas[nombre][1]
         if self._vista == "completa" and self.var_vistas[nombre].get():
@@ -2299,7 +2331,7 @@ class App:
         self._guardar_sesion(e)
         self.lbl_etapa.config(text=e["etapa"])
         self.v_vel.config(text=f"{int(e['kmh'])} / {float(e['kmh_obj']):.0f}")
-        self.v_dist.config(text=_km(e.get("metros")))
+        self.v_dist.config(text=flechas.con_distancia(_km(e.get("metros")), e.get("flecha"), e.get("metros")))
         cond = e.get("condicion")
         self.v_cond.config(text="-" if cond is None else f"{cond}%",
                            fg=self.T["texto"] if cond is None or cond >= 70 else
@@ -2856,7 +2888,9 @@ class App:
         def trabajo():
             try:
                 import calibrar as cal
-                print(f"\n[i] Calibración {'del carril' if solo == 'carril' else 'de la máscara de cabina (YOLO)' if solo == 'yolo' else 'completa'}"
+                que = {"carril": "del carril", "yolo": "de la máscara de cabina (YOLO)",
+                       "color": "del color de la ruta"}.get(solo, "completa")
+                print(f"\n[i] Calibración {que} ({self.nombre_modo})"
                       f"{' desde ' + imagen if imagen else ''}")
                 if not imagen:
                     print("[i] Ve al juego y pulsa F11 para capturar la pantalla. Después vuelve aquí "
@@ -2865,7 +2899,8 @@ class App:
                                    "Después vuelve al programa y pulsa Continuar.")
                 cal.calibrar(CONFIG, solo=solo, imagen=imagen, continuar=self._esperar_continuar)
                 print("[OK] Calibración terminada.")
-                self.notificar("calibracion", "Calibración terminada", "Se guardó en mi_equipo/config.json.")
+                self.notificar("calibracion", "Calibración terminada",
+                               f"Se guardó en mi_equipo/{os.path.basename(CONFIG)}.")
             except Exception:
                 print("[!] Error en la calibración:\n" + traceback.format_exc())
                 self.notificar("problema", "Error en la calibración", "Mira el registro del programa.")
@@ -2941,7 +2976,7 @@ class App:
             configuracion.cargar(CONFIG)
         try:
             carpetas.abrir(CONFIG)
-            print("[i] Los cambios en config.json se aplican al volver a iniciar el programa.")
+            print(f"[i] Los cambios en {os.path.basename(CONFIG)} se aplican al volver a iniciar el programa.")
         except Exception as e:  # noqa
             print(f"[!] No se pudo abrir config.json: {e}")
 
@@ -2951,6 +2986,186 @@ class App:
             carpetas.abrir(ruta)
         except Exception as e:  # noqa
             print(f"[!] No se pudo abrir {ruta}: {e}")
+
+    def cambiar_trabajo(self):
+        """3.9.0: vuelve al menú de trabajos (cierra y abre de nuevo el programa con --menu)."""
+        if self.hilo is not None and self.hilo.is_alive():
+            if not messagebox.askyesno("Cambiar de trabajo", "El programa está en marcha. ¿Detenerlo y volver al "
+                                                             "menú de trabajos?"):
+                return
+        try:
+            import subprocess
+            arr = os.path.join(os.path.dirname(os.path.abspath(__file__)), "arranque.py")
+            env = dict(os.environ)
+            env.pop("AUTOPILOTO_MODO", None)
+            subprocess.Popen([sys.executable, arr, "--menu"], cwd=os.path.dirname(arr), env=env)
+        except Exception as e:  # noqa
+            messagebox.showerror("Cambiar de trabajo", f"No se pudo abrir el menú: {e}")
+            return
+        self.cerrar()
+
+    # ------------------------------------------------------------ 3.9.0: reglas del modo libre
+    def _pestana_reglas_libre(self):
+        import modos
+        import ventana_mapa as vm
+        self.tab_reglas_libre = tab = self._pestana_desplazable("  Reglas del modo libre  ")
+        ttk.Label(tab, text="Reglas que valen en TODO el viaje del modo libre (no hay rutas ni lugares). Si hay "
+                            "varias se suman; la de más abajo manda en lo que pida. Se guardan en "
+                            "datos/modos/libre.json y se aplican al momento.",
+                  style="Tenue.TLabel", wraplength=640, justify="left").pack(fill="x")
+        cuerpo = ttk.Frame(tab, style="Panel.TFrame")
+        cuerpo.pack(fill="both", expand=True, pady=(8, 0))
+        izq = ttk.Frame(cuerpo, style="Panel.TFrame")
+        izq.pack(side="left", fill="y")
+        self.lst_libre = tk.Listbox(izq, height=12, width=34, exportselection=False, activestyle="none",
+                                    font=("Segoe UI", 10), relief="flat")
+        self._tkw(self.lst_libre, bg="campo", fg="texto")
+        self.lst_libre.pack(fill="y", expand=True)
+        self.lst_libre.bind("<<ListboxSelect>>", lambda _e: self._libre_elegir())
+        bb = ttk.Frame(izq, style="Panel.TFrame")
+        bb.pack(fill="x", pady=(6, 0))
+        for txt, cmd in (("+ Nueva", self._libre_nueva), ("Borrar", self._libre_borrar),
+                         ("▲", lambda: self._libre_mover(-1)), ("▼", lambda: self._libre_mover(1))):
+            ttk.Button(bb, text=txt, style="Seg.TButton", command=cmd).pack(side="left", padx=(0, 4))
+        ed = self._seccion(cuerpo, "Regla")
+        ed.pack(side="left", fill="both", expand=True, padx=(10, 0))
+        self.vl = {"nota": tk.StringVar(), "activa": tk.BooleanVar(value=True), "max_kmh": tk.StringVar(),
+                   "esquina_kmh": tk.StringVar(), "modo": tk.StringVar(value="normal"),
+                   "avance_esquina_px": tk.DoubleVar(value=0.0), "desplazamiento_px": tk.DoubleVar(value=0.0),
+                   "sin_freno": tk.BooleanVar(value=False)}
+        fila = 0
+
+        def campo(txt, w, ayuda):
+            nonlocal fila
+            ttk.Label(ed, text=txt).grid(row=fila, column=0, sticky="w", padx=(6, 8), pady=3)
+            w.grid(row=fila, column=1, sticky="ew", pady=3, padx=(0, 6))
+            self._ayuda(w, ayuda)
+            fila += 1
+        campo("Nota", ttk.Entry(ed, textvariable=self.vl["nota"], width=36), "Para qué es la regla (se ve en Conducir).")
+        campo("Máx. km/h", ttk.Entry(ed, textvariable=self.vl["max_kmh"], width=8),
+              "Velocidad máxima en todo el viaje. Vacío = sin límite propio.")
+        campo("Esquinas km/h", ttk.Entry(ed, textvariable=self.vl["esquina_kmh"], width=8),
+              "Velocidad para tomar las esquinas. Vacío = la normal.")
+        campo("Modo", ttk.Combobox(ed, textvariable=self.vl["modo"], values=("normal", "lento", "rapido"),
+                                   state="readonly", width=10), "Modo de velocidad (lento / rápido) para todo el viaje.")
+        campo("Avanzar antes/después de girar (px)", ttk.Scale(ed, from_=-vm.AVANCE_MAX, to=vm.AVANCE_MAX, variable=self.vl["avance_esquina_px"]),
+              "Negativo: gira antes. Positivo: avanza más antes de girar (los valores, al guardar).")
+        campo("Más a un lado (px)", ttk.Scale(ed, from_=-vm.LADO_MAX, to=vm.LADO_MAX, variable=self.vl["desplazamiento_px"]),
+              "Negativo: más a la izquierda. Positivo: más a la derecha.")
+        campo("", ttk.Checkbutton(ed, text="Sin freno (no frenar en esquinas)", variable=self.vl["sin_freno"]),
+              "No frena antes de las esquinas.")
+        campo("", ttk.Checkbutton(ed, text="Activa", variable=self.vl["activa"]), "Desmarca para apagarla sin borrarla.")
+        self.vl_exp = {}
+        exp = ttk.Frame(ed)
+        exp.grid(row=fila, column=0, columnspan=2, sticky="w", padx=6, pady=(6, 0))
+        fila += 1
+        ttk.Label(exp, text="Experimental en esta regla:").pack(anchor="w")
+        for clave, txt in vm.EXP_REGLA:
+            if clave == "usar_grabaciones":
+                continue
+            v = tk.StringVar(value="—")
+            self.vl_exp[clave] = v
+            r = ttk.Frame(exp)
+            r.pack(anchor="w")
+            ttk.Label(r, text=txt, width=28).pack(side="left")
+            ttk.Combobox(r, textvariable=v, values=("—", "sí", "no"), state="readonly", width=5).pack(side="left")
+        ed.columnconfigure(1, weight=1)
+        b = ttk.Button(ed, text="Guardar regla", style="Acento.TButton", command=self._libre_guardar)
+        b.grid(row=fila, column=0, columnspan=2, sticky="e", padx=6, pady=(10, 6))
+        self.reglas_libre = modos.cargar_reglas("libre")
+        self._libre_idx = None
+        self._libre_lista()
+
+    def _libre_lista(self, sel=None):
+        self.lst_libre.delete(0, "end")
+        for r in self.reglas_libre:
+            self.lst_libre.insert("end", ("" if r.get("activa", True) else "(apagada) ") + (r.get("nota") or "Regla"))
+        if not self.reglas_libre:
+            self.lst_libre.insert("end", "(sin reglas: + Nueva)")
+        if sel is not None and 0 <= sel < len(self.reglas_libre):
+            self.lst_libre.selection_set(sel)
+            self._libre_elegir()
+
+    def _libre_elegir(self):
+        s = self.lst_libre.curselection()
+        if not s or s[0] >= len(self.reglas_libre):
+            return
+        self._libre_idx = i = s[0]
+        r = self.reglas_libre[i]
+        self.vl["nota"].set(r.get("nota", ""))
+        self.vl["activa"].set(bool(r.get("activa", True)))
+        for k in ("max_kmh", "esquina_kmh"):
+            self.vl[k].set("" if r.get(k) is None else str(r[k]))
+        self.vl["modo"].set(r.get("modo") or "normal")
+        self.vl["avance_esquina_px"].set(float(r.get("avance_esquina_px") or 0))
+        self.vl["desplazamiento_px"].set(float(r.get("desplazamiento_px") or 0))
+        self.vl["sin_freno"].set(bool(r.get("sin_freno")))
+        exp = r.get("exp") or {}
+        for k, v in self.vl_exp.items():
+            v.set("—" if k not in exp else ("sí" if exp[k] else "no"))
+
+    def _libre_nueva(self):
+        self.reglas_libre.append({"nota": f"Regla {len(self.reglas_libre) + 1}", "activa": True, "general": True})
+        self._libre_lista(len(self.reglas_libre) - 1)
+
+    def _libre_borrar(self):
+        i = self._libre_idx
+        if i is None or i >= len(self.reglas_libre):
+            return
+        if not messagebox.askyesno("Borrar regla", f"¿Borrar «{self.reglas_libre[i].get('nota') or 'Regla'}»?"):
+            return
+        del self.reglas_libre[i]
+        self._libre_idx = None
+        self._libre_escribir()
+        self._libre_lista()
+
+    def _libre_mover(self, d):
+        i = self._libre_idx
+        j = None if i is None else i + d
+        if j is None or not (0 <= j < len(self.reglas_libre)):
+            return
+        self.reglas_libre[i], self.reglas_libre[j] = self.reglas_libre[j], self.reglas_libre[i]
+        self._libre_escribir()
+        self._libre_lista(j)
+
+    def _libre_guardar(self):
+        i = self._libre_idx
+        if i is None or i >= len(self.reglas_libre):
+            self.reglas_libre.append({})
+            i = self._libre_idx = len(self.reglas_libre) - 1
+        r = {"nota": self.vl["nota"].get().strip() or "Regla", "activa": bool(self.vl["activa"].get()),
+             "general": True}
+        for k in ("max_kmh", "esquina_kmh"):
+            t = self.vl[k].get().strip().replace(",", ".")
+            if t:
+                try:
+                    r[k] = round(float(t))
+                except ValueError:
+                    messagebox.showerror("Regla", f"«{t}» no es un número.")
+                    return
+        if self.vl["modo"].get() in ("lento", "rapido"):
+            r["modo"] = self.vl["modo"].get()
+        for k in ("avance_esquina_px", "desplazamiento_px"):
+            v = round(float(self.vl[k].get()), 1)
+            if abs(v) >= 0.5:
+                r[k] = v
+        if self.vl["sin_freno"].get():
+            r["sin_freno"] = True
+        exp = {k: v.get() == "sí" for k, v in self.vl_exp.items() if v.get() in ("sí", "no")}
+        if exp:
+            r["exp"] = exp
+        self.reglas_libre[i] = r
+        self._libre_escribir()
+        self._libre_lista(i)
+
+    def _libre_escribir(self):
+        import modos
+        try:
+            modos.guardar_reglas(self.reglas_libre, "libre")
+            print(f"[OK] Reglas del modo libre guardadas ({len(self.reglas_libre)}).")
+            self.orden("recargar_rutas")
+        except Exception as e:  # noqa
+            messagebox.showerror("Reglas del modo libre", f"No se pudieron guardar: {e}")
 
     def cerrar(self):
         self.detener()

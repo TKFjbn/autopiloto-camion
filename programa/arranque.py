@@ -9,6 +9,8 @@ Solo usa la biblioteca estándar de Python, para poder funcionar aunque falte to
 
     python arranque.py              revisa, instala lo que falte (preguntando) y abre la interfaz
     python arranque.py --instalar   solo revisa e instala, sin preguntar, y no abre la interfaz
+    python arranque.py --menu       (3.9.0) muestra el menú de trabajos aunque esté «abrir siempre»
+    python arranque.py --modo libre (3.9.0) abre directo en ese trabajo
 """
 import importlib
 import importlib.util
@@ -184,8 +186,24 @@ def main():
 
     root.destroy()
 
-    # abrir la interfaz; cualquier error al arrancar se muestra y se guarda
+    # 3.9.0: menú de trabajos (camionero, libre…); --menu lo muestra siempre, --modo X lo salta
     sys.path.insert(0, PROGRAMA)
+    modo = None
+    if "--modo" in sys.argv:
+        i = sys.argv.index("--modo")
+        modo = sys.argv[i + 1] if i + 1 < len(sys.argv) else None
+    if not modo:
+        try:
+            import menu_trabajos
+            modo = menu_trabajos.elegir(forzar_menu="--menu" in sys.argv)
+        except Exception:  # noqa
+            guardar_error("Menú de trabajos:\n" + traceback.format_exc())
+            modo = "camionero"
+        if modo is None:                                 # cerró el menú sin elegir
+            sys.exit(0)
+    os.environ["AUTOPILOTO_MODO"] = modo
+
+    # abrir la interfaz; cualquier error al arrancar se muestra y se guarda
     try:
         import runpy
         runpy.run_path(os.path.join(PROGRAMA, "interfaz.py"), run_name="__main__")

@@ -12,6 +12,7 @@ velocidad, distancia al punto, condición y, abajo, el aviso más importante (pr
 """
 import tkinter as tk
 
+import flechas
 import notificador
 
 BG, FG, TENUE = "#16181c", "#f2f3f5", "#9aa0aa"
@@ -129,7 +130,7 @@ class PanelFlotante:
                    "GRABANDO": "● Grabando", "REPRODUCIENDO": "● Repitiendo grabación"}
         cond = e.get("condicion")
         l1 = (f"{estados.get(e.get('estado'), e.get('estado', ''))}   {int(e.get('kmh', 0))}/"
-              f"{float(e.get('kmh_obj', 0)):.0f} km/h   {_km(e.get('metros'))}"
+              f"{float(e.get('kmh_obj', 0)):.0f} km/h   {flechas.con_distancia(_km(e.get('metros')), e.get('flecha'), e.get('metros'))}"
               + ("" if cond is None else f"   {cond}%"))
         prob = e.get("problemas") or []
         if prob:

@@ -236,7 +236,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--imagen")
     ap.add_argument("--config", default=None)
-    ap.add_argument("--solo", choices=["carril", "yolo"], help="calibrar solo una parte (p. ej. --solo carril)")
+    ap.add_argument("--solo", choices=["carril", "yolo", "color"], help="calibrar solo una parte (p. ej. --solo carril)")
     ap.add_argument("--espera", type=int, default=0,
                     help="0 = capturar con F11 (por defecto); N = cuenta atrás de N segundos")
     args = ap.parse_args()
@@ -457,7 +457,7 @@ def _color_ruta(mini, cfg):
             muestras.append(hsv[max(0, cy - 1):cy + 2, max(0, cx - 1):cx + 2].reshape(-1, 3).tolist())
             clics.append((cx, cy))
 
-    nombre = "Color de la ruta: clics en la ruta roja. Z=deshacer, ENTER=listo"
+    nombre = "Color de la ruta: clics sobre la linea del GPS. Z=deshacer, ENTER=listo"
     ventana_encima(nombre)
     cv2.setMouseCallback(nombre, clic)
     rangos = cfg["color_ruta_hsv"]
@@ -603,6 +603,29 @@ def calibrar(config=None, solo=None, imagen=None, espera=0, continuar=None):
         if mascara_yolo(img, cfg, origen=origen, rect=rect):
             configuracion.guardar(cfg, ruta_cfg)
             print(f"Guardado en {cfg.get('_ruta')}")
+        return
+
+    if solo == "color":                                 # 3.9.0: solo el color de la línea del GPS
+        import copy
+        c2 = copy.deepcopy(cfg)
+        try:
+            if rect:
+                geometria.preparar(c2, rect=rect, persistir=False, avisar=False)
+        except Exception as e:  # noqa
+            print(f"   (No se pudo ubicar la calibración en esta ventana: {e})")
+        m = dict(c2["minimapa"])
+        m["x"], m["y"] = int(m["x"]) - ox, int(m["y"]) - oy
+        mini = vision.recortar_minimapa(img, m)
+        if mini is None or not getattr(mini, "size", 0):
+            print("[!] No encontré el minimapa en la captura. Calibra todo primero («Calibrar todo»).")
+            return
+        rangos = _color_ruta(mini, cfg)
+        if rangos != cfg["color_ruta_hsv"]:
+            cfg["color_ruta_hsv"] = rangos
+            configuracion.guardar(cfg, ruta_cfg)
+            print(f"Color de la ruta guardado en {cfg.get('_ruta')}: {rangos}")
+        else:
+            print("Color de la ruta sin cambios.")
         return
 
     det = autodetectar(img)

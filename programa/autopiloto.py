@@ -151,14 +151,26 @@ class Autopiloto:
         self.ruta_elegida = None              # 3.2.5: recorrido elegido a mano (archivo de datos/rutas)
         self.regla = None
         self._tramo_visto = None
+        # 3.9.0: trabajo elegido en el menú. «libre»: un punto marcado a mano (ruta morada), sin etapas ni rutas;
+        # solo las reglas generales del modo (datos/modos/libre.json)
+        self.modo = cfg.get("modo", "camionero")
+        self.libre = self.modo == "libre"
+        if self.libre:
+            import modos
+            self.rutas, self.ruta_act = modos.datos_modo("libre")
+            n = len(self.ruta_act["reglas"]["1"])
+            print(f"[i] Modo libre: sigo la ruta morada hasta el punto que marques. {n} regla(s) general(es).")
+            # el marcador rojo de destino no existe aquí (el del punto libre es morado): no ir «directo al marcador»
+            self.cfg.setdefault("etapas_pantalla", {})["aproximar_marcador"] = False
         # v38: grabaciones de recorridos (entrada a granjas, reversa, punto final)
         import grabaciones
         self.grab_mod = grabaciones
-        self.grabs = grabaciones.cargar_todas() if cfg.get("experimental", {}).get("usar_grabaciones", True) else []
+        self.grabs = grabaciones.cargar_todas() if cfg.get("experimental", {}).get("usar_grabaciones", True) \
+            and not self.libre else []
         if self.grabs:
             print(f"[i] Grabaciones de recorridos: {len(self.grabs)} ({', '.join(g.get('nombre', '?') for g in self.grabs)}).")
         self.grabadora = grabaciones.Grabadora(lambda n: entrada.tecla_pulsada(entrada.VK[n]))
-        self.trazados = grabaciones.cargar_trazados()
+        self.trazados = [] if self.libre else grabaciones.cargar_trazados()
         if self.trazados:
             print(f"[i] Trazados: {len(self.trazados)} ({', '.join(t.get('nombre', '?') for t in self.trazados)}).")
         self.traz = None                       # (desplazamiento_px, kmh, trazado) activo ahora
@@ -214,7 +226,10 @@ class Autopiloto:
         self.estado = "INACTIVO"
         self.fuera_de_calle = False
         self.t_estado = time.time()
-        self.tramo = tramo_inicial
+        self.tramo = 1 if self.libre else tramo_inicial      # 3.9.0: en libre hay un solo tramo
+        if self.libre:
+            self._tramo_visto = 1
+            self.recorrido = "Libre"
         self.modo_lento = False
         self.modo_rapido = False                          # 2.6.0; fijo desde la 3.4.0
         self.direccion = 0.0
@@ -788,6 +803,8 @@ class Autopiloto:
         print(f"\n[{time.strftime('%H:%M:%S')}] -> {estado}   |   {self.texto_etapa()}")
 
     def texto_etapa(self):
+        if getattr(self, "libre", False):              # 3.9.0
+            return "Modo libre: hacia el punto marcado" if self.estado != "INACTIVO" else "Modo libre: manejas tú"
         if self.estado == "TERMINADO":
             return f"Etapa 7: {ETAPAS[7]}"
         tabla = ETAPA_ESPERA if self.estado == "ESPERANDO_RUTA" else ETAPA_TRAMO
@@ -857,12 +874,19 @@ class Autopiloto:
             except queue.Empty:
                 break
             if cmd == "grabar":
-                self.alternar_grabacion()
+                if not self.libre:
+                    self.alternar_grabacion()
                 continue
             if cmd == "recargar_grabaciones":
                 self.grabs = self.grab_mod.cargar_todas() if self.experimental("usar_grabaciones") else []
                 self.trazados = self.grab_mod.cargar_trazados()
                 print(f"[i] Grabaciones recargadas: {len(self.grabs)} grabaciones, {len(self.trazados)} trazados.")
+                continue
+            if cmd == "recargar_rutas" and self.libre:                    # 3.9.0: reglas del modo libre
+                import modos
+                self.rutas, self.ruta_act = modos.datos_modo("libre")
+                self.regla = None
+                print(f"[i] Reglas del modo libre recargadas ({len(self.ruta_act['reglas']['1'])}).")
                 continue
             if cmd == "recargar_rutas" and self.rutas_mod is not None:     # 2.4.0: se editó desde el mapa
                 arch = (self.ruta_act or {}).get("_archivo")
@@ -882,6 +906,8 @@ class Autopiloto:
                 continue
             if cmd.startswith("recorrido:"):                 # 3.2.5: elegir el recorrido a mano
                 self.elegir_recorrido(cmd.split(":", 1)[1] or None)
+                continue
+            if cmd.startswith("tramo:") and self.libre:
                 continue
             if cmd.startswith("tramo:"):
                 self.tramo = max(0, min(2, int(cmd.split(":")[1])))
@@ -923,6 +949,8 @@ class Autopiloto:
                 print(f"\n[i] Ayuda de carril {'ACTIVADA' if self.usar_carril else 'desactivada'}")
             elif k == t["hito"]:
                 self.marcar_hito()
+            elif self.libre and k in (t.get("grabar"), t["saltar_etapa"]):
+                pass                                       # 3.9.0: sin grabaciones ni etapas en libre
             elif k == t.get("grabar"):                     # 3.5.0: empezar / terminar de grabar
                 self.alternar_grabacion()
             elif k == t["saltar_etapa"]:
@@ -2062,6 +2090,21 @@ class Autopiloto:
                 nivel = max(nivel, 0.3 + 0.4 * (1.0 - h))
         return min(0.8, nivel)
 
+    def _llegada_libre(self):
+        """3.9.0: en el modo libre, al llegar al punto marcado (distancia del HUD) frena y devuelve el control."""
+        if self.estado not in ("CONDUCIENDO", "ARRANCANDO"):
+            return
+        d = self.dist_punto()
+        llegada = float((self.cfg.get("modo_libre") or {}).get("llegada_m", 20))
+        if d is None or d > llegada:
+            return
+        self.ctrl.set(0.0, 0.0, 1.0)
+        print(f"\n[OK] Llegaste al punto ({_km(d)}). Te devuelvo el control: marca otro punto y activa de nuevo.  "
+              f"{self.lugar()}")
+        self.incidente(f"llegada al punto libre ({_km(d)})")
+        self.cambiar("INACTIVO", "llegaste al punto")
+        self.avisar("etapa", "Llegaste", "Marca otro punto en el mapa y activa de nuevo el autopiloto.")
+
     def _csv_yolo(self):
         est = getattr(self, "yolo_est", None) or {}
         if not est:
@@ -2157,6 +2200,12 @@ class Autopiloto:
         """Parado junto al marcador sin que el juego reaccione: ¿estamos en el punto o algo nos tapa?"""
         ep = self.cfg.get("etapas_pantalla", {})
         d_ = self.dist_punto()
+        if getattr(self, "libre", False) and (d_ is None or d_ <= ep.get("llegada_m", 8) * 4):
+            # 3.9.0: en libre no hay juego que esperar: llegaste
+            self.ctrl.set(0.0, 0.0, 1.0)
+            self.cambiar("INACTIVO", "llegaste al punto")
+            self.avisar("etapa", "Llegaste", "Marca otro punto en el mapa y activa de nuevo el autopiloto.")
+            return "llegado"
         if d_ is None or d_ <= ep.get("llegada_m", 8):
             print(f"[OK] En el punto{'' if d_ is None else f' ({_km(d_)})'}: espero al juego.  {self.lugar()}")
             self.incidente(f"en el punto{'' if d_ is None else f' ({_km(d_)})'}, esperando al juego")
@@ -2339,6 +2388,8 @@ class Autopiloto:
 
     def revisar_pantalla(self, ahora):
         """Mira la pantalla completa cada ~0.4 s: menú de carga y barras Cargando/Descargando."""
+        if getattr(self, "libre", False):                 # 3.9.0: sin etapas en el modo libre
+            return
         ep = self.cfg.get("etapas_pantalla", {})
         if not ep.get("activo", True) or ahora - self.t_pantalla < ep.get("cada_seg", 0.4):
             return
@@ -2425,6 +2476,11 @@ class Autopiloto:
     REC_ACUERDO_M = 30            # cuánto pueden diferir las lecturas que "coinciden"
 
     def _reconocer_recorrido(self, ahora, d):
+        if getattr(self, "libre", False):                 # 3.9.0: no hay rutas que reconocer
+            return
+        self._reconocer_recorrido_camion(ahora, d)
+
+    def _reconocer_recorrido_camion(self, ahora, d):
         """La distancia inicial se estima con cada lectura del HUD: distancia + lo recorrido desde que se empezó
         a buscar. Se reconoce con la mediana de las primeras lecturas y, durante 40 s, si 3 lecturas seguidas
         coinciden con OTRO recorrido, se corrige (p. ej. el HUD mostró 5630 varios segundos y era 5530)."""
@@ -2552,7 +2608,7 @@ class Autopiloto:
             # 2.3.4: una BAJADA brusca necesita 3 lecturas seguidas (el HUD leyó "8 m" dos veces en vez de 867)
             # v39: en la ida, la distancia salta de "casi llegado" a varios km: ya descargó aunque no se
             # haya visto la notificación -> pasar a la vuelta
-            if self.tramo == 1 and self._tramo_visto == 1 and d_f < 200 and d_raw > 1000 and \
+            if not self.libre and self.tramo == 1 and self._tramo_visto == 1 and d_f < 200 and d_raw > 1000 and \
                     ahora - getattr(self, "_t_tramo", ahora) > 60 and \
                     time.time() - getattr(self, "t_cargado", -999.0) > 90:   # 2.3.0: no justo después de cargar
                 print("\n[i] Descargado no detectado: la distancia saltó a la vuelta. Paso al tramo 2.")
@@ -2569,6 +2625,8 @@ class Autopiloto:
                 self._salto_n = 0
             self._salto = d_raw
             d = d_f
+        if self.libre:
+            self.tramo = self._tramo_visto = 1
         if self.tramo != self._tramo_visto:
             if self.tramo == 1:
                 self.ruta_buscar_desde = ahora        # justo después de cargar: reconocer la ruta
@@ -2667,7 +2725,7 @@ class Autopiloto:
 
     def revisar_notificacion(self, img, mon, ahora):
         """Notificaciones del trabajo: fijan la etapa aunque lleves tú el camión."""
-        if not self.cfg.get("hud_texto", {}).get("notificaciones", True):
+        if getattr(self, "libre", False) or not self.cfg.get("hud_texto", {}).get("notificaciones", True):
             return
         try:
             import notificaciones
@@ -2807,6 +2865,8 @@ class Autopiloto:
                 res, (d, a, f) = self.paso(img, dt, kmh)
                 if self.yolo is not None:                  # 3.6.0: modo sombra
                     self._yolo_paso(res)
+                if self.libre:                             # 3.9.0: llegada al punto libre
+                    self._llegada_libre()
                 self._volcar_observaciones()
 
                 if self.log:
@@ -2849,6 +2909,8 @@ class Autopiloto:
                         "zona": (self.hud.estado.get("zona") if self.hud else None),
                         "calle": (self.hud.estado.get("calle") if self.hud else None),
                         "metros": (self.hud.estado.get("metros") if self.hud else None),
+                        "flecha": (self.hud.estado.get("flecha") if self.hud else None),     # 3.9.0
+                        "modo": self.modo,
                         "condicion": getattr(self, "condicion", None),
                         "regla": (self.regla or {}).get("nota"),
                         "rumbo_abs": None if self.rumbo is None else self.rumbo.valor,

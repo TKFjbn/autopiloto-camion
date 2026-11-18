@@ -35,15 +35,52 @@ PARA_LLM = os.path.join(EQUIPO, "para_llm")             # 2.2.0: archivos listos
 
 VIAJES = os.path.join(RAIZ, "viajes")
 
+# 3.9.0: trabajo/modo elegido en el menú de inicio (lo pasa arranque.py en AUTOPILOTO_MODO).
+# Cada modo distinto del camionero tiene su configuración (calibración del carril, máscara de YOLO, color de la
+# ruta…) y su carpeta de viajes; los datos compartibles (rutas, grabaciones) son del camionero.
+MODO = (os.environ.get("AUTOPILOTO_MODO") or "camionero").strip().lower() or "camionero"
+CONFIG_CAMIONERO = CONFIG
+MODOS = os.path.join(DATOS, "modos")              # reglas de cada modo (p. ej. datos/modos/libre.json)
+if MODO != "camionero":
+    CONFIG = os.path.join(EQUIPO, f"config_{MODO}.json")
+    VIAJES = os.path.join(VIAJES, MODO)
+
 
 def preparar():
     """Crea las carpetas, entra en RAIZ y mueve los archivos del orden antiguo (una sola vez)."""
-    for c in (DATOS, RUTAS, GRABACIONES, TRAZADOS, EQUIPO, VIAJES):
+    for c in (DATOS, RUTAS, GRABACIONES, TRAZADOS, EQUIPO, VIAJES, MODOS):
         os.makedirs(c, exist_ok=True)
     os.chdir(RAIZ)
+    preparar_modo()
     movidos = migrar()
     movidos += retirar_obsoletos()
     return movidos
+
+
+COLOR_RUTA_LIBRE = [[128, 90, 110, 146, 255, 255]]   # 3.9.0: la ruta morada de un punto libre (H ~136)
+
+
+def preparar_modo():
+    """3.9.0: la primera vez en un modo nuevo, su configuración parte de la del camionero (minimapa, ventana,
+    teclas, mando) sin lo que depende del vehículo o del modo: calibración del carril y máscara de YOLO."""
+    if MODO == "camionero" or os.path.exists(CONFIG):
+        return
+    base = leer_json(CONFIG_CAMIONERO, None) if os.path.exists(CONFIG_CAMIONERO) else None
+    if base is None:
+        return                                    # configuracion.cargar crea una por defecto
+    base = dict(base)
+    if MODO == "libre":
+        base["color_ruta_hsv"] = COLOR_RUTA_LIBRE
+    cal = dict(base.get("calibracion") or {})
+    cal.pop("carril", None)
+    base["calibracion"] = cal
+    car = dict(base.get("carril") or {})
+    car["trapecio"] = None
+    base["carril"] = car
+    yo = dict(base.get("yolo") or {})
+    yo["mascara"] = []
+    base["yolo"] = yo
+    guardar_json(CONFIG, base)
 
 
 def retirar_obsoletos():

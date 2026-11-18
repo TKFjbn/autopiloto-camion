@@ -13,6 +13,12 @@ No toca el launcher ni la carpeta del juego: lee la pantalla y simula teclas o u
 | 6. Volver a B | Ruta de vuelta | Autopiloto |
 | 7. Terminar | Al desaparecer la ruta queda en TERMINADO | Tú |
 
+## Novedades de la 3.9.0: menú de trabajos y modo libre (prueba)
+- Al abrir sale un **menú de trabajos**: Camionero (lo de siempre) o **Libre (prueba)**. Marca «Abrir siempre…» para no verlo; para cambiar, botón «Trabajo: … ▾» arriba a la derecha.
+- **Modo libre:** marca un punto cualquiera en el mapa del juego (la ruta sale morada) y activa con INSERT. Va hasta el punto y al llegar te devuelve el control. Sus reglas, para todo el viaje, se editan en la pestaña «Reglas del modo libre».
+- El modo libre tiene sus propios ajustes (`mi_equipo/config_libre.json`) y viajes (`viajes/libre/`). Como vas en otro vehículo, **calibra aparte el carril y la máscara de YOLO** si los usas, y si no ve la ruta usa «Calibración → Color de la ruta».
+- La **flecha del HUD** (⬆ ⬅ ➡ ⬈ ⬉) se ve junto a la distancia, en la ventana y en el panel F6.
+
 ## Novedades de la 3.8.0: YOLO frena suave (etapa 3)
 - Con «YOLO frena de verdad» prendido, YOLO también **frena suave** cuando algo en tu pasillo (a menos de 40 m) va a chocar en menos de 2 s o vas a menos de 1 s de camino del de adelante: suelta el acelerador y frena del 30 al 80 % según lo cerca, al menos 0,5 s. Después, 1,5 s con el acelerador limitado al 30 % para no volver a pegarse. El freno a fondo y la espera siguen igual; «seguir» sigue solo anotado.
 
